@@ -44,11 +44,13 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Log in to continue',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.secondary.withValues(alpha: 0.7),
+            Center(
+              child: Text(
+                'Log in to continue',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.secondary.withValues(alpha: 0.7),
+                ),
               ),
             ),
             const SizedBox(height: 40),
