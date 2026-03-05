@@ -2,8 +2,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
-import 'login_screen.dart';
 import '../../shared/widgets/custom_textfield.dart';
+import 'login_screen.dart';
+import 'phone_number_screen.dart';
+
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -46,6 +48,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   
   // TODO: Add actual sign up logic AND REMOVE THE PRINT STATEMENT ABOVE IT'S ONLY USED FOR TESTING VALUES
+
+     // Navigate to phone number screen with all data
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhoneNumberScreen(
+          firstName: firstName,
+          lastName: lastName,
+          email: email,
+          gender: gender,
+        ),
+      ),
+    );
   }
 
   @override
