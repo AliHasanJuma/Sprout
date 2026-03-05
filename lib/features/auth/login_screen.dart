@@ -1,12 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart'; // Add this for tap recognizer
+import 'package:flutter/gestures.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
-import '../../shared/widgets/custom_textfield.dart'; // Add this import
-import 'sign_up_screen.dart'; // Add this for navigation
+import '../../shared/widgets/custom_textfield.dart';
+import 'sign_up_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {  
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {  
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {  
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _handleLogin() {  // login handler
+    String email = _emailController.text;
+    String password = _passwordController.text;
+    
+    print('Email: $email');
+    print('Password: $password');
+    
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+    
+    // TODO: Add actual login logic AND REMOVE THE PRINT STATEMENT ABOVE IT'S ONLY USED FOR TESTING VALUES
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,8 +65,8 @@ class LoginScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center( child:
-              Text(
+            const Center(
+              child: Text(
                 'Welcome Back!',
                 style: TextStyle(
                   fontSize: 32,
@@ -55,20 +87,22 @@ class LoginScreen extends StatelessWidget {
             ),
             const SizedBox(height: 40),
             
-            // Email field - Using new CustomTextField
-            const CustomTextField(
+            // Email field
+            CustomTextField(
               label: 'Email',
               hintText: 'Enter your email',
               keyboardType: TextInputType.emailAddress,
+              controller: _emailController,
             ),
             
             const SizedBox(height: 20),
             
-            // Password field - Using new CustomTextField
-            const CustomTextField(
+            // Password field
+            CustomTextField(
               label: 'Password',
               hintText: 'Enter your password',
               obscureText: true,
+              controller: _passwordController,
             ),
             
             const SizedBox(height: 30),
@@ -76,9 +110,7 @@ class LoginScreen extends StatelessWidget {
             // Log In button
             CustomButton(
               text: 'Log In',
-              onPressed: () {
-                // Handle login
-              },
+              onPressed: _handleLogin,  // uses handler initialized above
             ),
             
             const SizedBox(height: 16),

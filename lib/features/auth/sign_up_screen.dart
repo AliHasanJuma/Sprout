@@ -15,6 +15,39 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   String? _selectedGender; // Track selected gender
 
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _handleSignUp() { // signup handler
+    String firstName = _firstNameController.text;
+    String lastName = _lastNameController.text;
+    String email = _emailController.text;
+    String? gender = _selectedGender;
+  
+    print('First Name: $firstName');
+    print('Last Name: $lastName');
+    print('Email: $email');
+    print('Gender: $gender');
+  
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || gender == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+  
+  // TODO: Add actual sign up logic AND REMOVE THE PRINT STATEMENT ABOVE IT'S ONLY USED FOR TESTING VALUES
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,17 +75,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // First Name
-              const CustomTextField(
+              CustomTextField(
                 label: 'First Name',
                 hintText: 'Enter your first name',
+                controller: _firstNameController,
               ),
 
               const SizedBox(height: 20),
               
               // Last Name
-              const CustomTextField(
+              CustomTextField(
                 label: 'Last Name',
                 hintText: 'Enter your last name',
+                controller: _lastNameController,
               ),
               
               const SizedBox(height: 20),
@@ -146,10 +181,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
               const SizedBox(height: 20),
               
               // Email
-              const CustomTextField(
+              CustomTextField(
                 label: 'Email',
                 hintText: 'example@gmail.com',
                 keyboardType: TextInputType.emailAddress,
+                controller: _emailController,
               ),
               
               const SizedBox(height: 30),
@@ -157,9 +193,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               // Continue button
               CustomButton(
                 text: 'Continue',
-                onPressed: () {
-                  // Handle sign up logic
-                },
+                onPressed: _handleSignUp,
                 backgroundColor: AppColors.primary,
                 textColor: Colors.black,
               ),
