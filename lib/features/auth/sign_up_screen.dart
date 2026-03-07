@@ -5,6 +5,7 @@ import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'login_screen.dart';
 import 'phone_number_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 class SignUpScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void dispose() {
@@ -29,27 +31,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  void _handleSignUp() { // signup handler
+  Future<void> _handleSignUp() async { // signup handler
     String firstName = _firstNameController.text;
     String lastName = _lastNameController.text;
     String email = _emailController.text;
     String? gender = _selectedGender;
-  
-    print('First Name: $firstName');
-    print('Last Name: $lastName');
-    print('Email: $email');
-    print('Gender: $gender');
-  
-    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || gender == null) {
+if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || gender == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields')),
       );
       return;
     }
-  
-  // TODO: Add actual sign up logic AND REMOVE THE PRINT STATEMENT ABOVE IT'S ONLY USED FOR TESTING VALUES
+    try {
+    await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      email: email,
+      password: _passwordController.text,
+    );
 
-     // Navigate to phone number screen with all data
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -61,6 +59,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
       ),
     );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+
   }
 
   @override
@@ -202,7 +206,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
               ),
-              
+              CustomTextField(
+  label: 'Password',
+  hintText: 'Enter your password',
+  controller: _passwordController,
+  obscureText: true,
+),
               const SizedBox(height: 30),
               
               // Continue button

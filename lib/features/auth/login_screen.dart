@@ -1,9 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:my_app/features/auth/welcome_screen.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'sign_up_screen.dart';
+import 'homescreen.dart';
 
 class LoginScreen extends StatefulWidget {  
   const LoginScreen({super.key});
@@ -23,21 +26,25 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {  // login handler
-    String email = _emailController.text;
-    String password = _passwordController.text;
+  Future<void> _handleLogin() async {  // login handler
+  
+    try {
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
     
-    print('Email: $email');
-    print('Password: $password');
-    
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
-      );
-      return;
-    }
-    
-    // TODO: Add actual login logic AND REMOVE THE PRINT STATEMENT ABOVE IT'S ONLY USED FOR TESTING VALUES
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Homescreen()),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  } 
+
   }
 
   @override

@@ -3,6 +3,8 @@ import 'package:flutter/gestures.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
 import 'login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'homescreen.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String firstName;
@@ -10,6 +12,8 @@ class VerificationScreen extends StatefulWidget {
   final String email;
   final String? gender;
   final String phoneNumber;
+  final String verificationId;
+
 
   const VerificationScreen({
     super.key,
@@ -18,6 +22,7 @@ class VerificationScreen extends StatefulWidget {
     required this.email,
     this.gender,
     required this.phoneNumber,
+    required this.verificationId,
   });
 
   @override
@@ -163,22 +168,36 @@ class _VerificationScreenState extends State<VerificationScreen> {
             // Continue button
             CustomButton(
               text: 'Continue',
-              onPressed: () {
-                // Get all digits
-                String code = '';
-                for (var controller in _controllers) {
-                  code += controller.text;
-                }
-                print('Verification code: $code');
-                print('All user data:');
-                print('First Name: ${widget.firstName}');
-                print('Last Name: ${widget.lastName}');
-                print('Email: ${widget.email}');
-                print('Gender: ${widget.gender}');
-                print('Phone: ${widget.phoneNumber}');
-                
-                // TODO: Verify code and complete signup
-              },
+              onPressed: () async {
+
+  String code = '';
+  for (var controller in _controllers) {
+    code += controller.text;
+  }
+
+  try {
+
+    PhoneAuthCredential credential = PhoneAuthProvider.credential(
+      verificationId: widget.verificationId,
+      smsCode: code,
+    );
+
+    await FirebaseAuth.instance.signInWithCredential(credential);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const Homescreen(),
+      ),
+    );
+
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Invalid verification code')),
+    );
+  }
+}
+        ,
               backgroundColor: AppColors.primary,
               textColor: Colors.black,
             ),
