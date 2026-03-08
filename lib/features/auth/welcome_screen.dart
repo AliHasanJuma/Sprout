@@ -13,31 +13,35 @@ class WelcomeScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
             children: [
               // Top section with logo and text - pushed up
               Container(
-                margin: const EdgeInsets.only(top: 60), // Adjust this value to position higher/lower
+                margin: const EdgeInsets.only(top: 210), // Adjust this value to position higher/lower
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Dark green logo - left aligned
-                    Image.asset(
-                      'assets/logo/logoDark_green.png', // Make sure this path is correct
-                      width: 200, // Adjust size as needed
-                      height: 200,
+                    Transform.translate(
+                      offset: const Offset(0, 0), 
+                      child: Image.asset(
+                        'assets/logo/logodark_green.png', 
+                        width: 200, 
+                        height: 40,
+                        alignment: Alignment.centerLeft,
+                      ),
                     ),
                     
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 32),
                     
-                    // Tagline - bigger, bolder, left aligned
                     const Text(
-                      'Connect, Craft & Share.',
+                      'Connect,\nCraft & Share.',
                       style: TextStyle(
-                        fontSize: 50, // Bigger
-                        fontWeight: FontWeight.bold, // Bolder
-                        color: AppColors.secondary, // Dark green to match logo
+                        fontSize: 40, // Bigger
+                        fontFamily: 'SF Pro Display',
+                        fontWeight: FontWeight.w900,
+                        color: Color.fromARGB(255, 0, 0, 0), // Dark green to match logo
                         height: 1.2, // Tighter line height
                       ),
                       textAlign: TextAlign.left,
@@ -62,10 +66,11 @@ class WelcomeScreen extends StatelessWidget {
                     },
                     backgroundColor: AppColors.secondary,
                     textColor: Colors.white,
+                    
                     isOutlined: false,
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   
                   // Log In button - primary color (neon green) with dark green text
                   CustomButton(

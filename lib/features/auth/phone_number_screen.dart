@@ -26,17 +26,23 @@ class PhoneNumberScreen extends StatefulWidget {
 
 class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
   final TextEditingController _phoneController = TextEditingController();
+  final FocusNode _phoneFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     // Start with empty string - the visual +973 is already on the left
     _phoneController.text = '';
+    _phoneFocusNode.addListener(() {
+      setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _phoneController.dispose();
+    // The listener is automatically removed when the focus node is disposed.
+    _phoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -78,35 +84,46 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final Color borderColor = _phoneFocusNode.hasFocus
+        ? const Color(0xFFDAF64F)
+        : const Color(0xFFDEDEDE);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: AppColors.secondary),
+          icon: Image.asset(
+            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
+            width: 24,
+            height: 24,
+            color: const Color(0xFF003E3B),
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Phone Number',
           style: TextStyle(
+            fontFamily: 'SF Pro Display',
+            fontWeight: FontWeight.w400,
             color: AppColors.secondary,
-            fontWeight: FontWeight.bold,
           ),
         ),
         centerTitle: true,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(32.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Enter your phone number',
               style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondary,
+                fontFamily: 'SF Pro Display',
+                fontSize: 16,
+                fontWeight: FontWeight.w300,
+                color: Color(0xFF003E3B),
               ),
             ),
             const SizedBox(height: 8),
@@ -114,11 +131,11 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
             // Phone number field with Bahrain country code
             Container(
               decoration: BoxDecoration(
-                color: AppColors.tertiary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(15),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: AppColors.primary,
-                  width: 2,
+                  color: borderColor,
+                  width: 1,
                 ),
               ),
               child: Row(
@@ -128,17 +145,17 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     decoration: BoxDecoration(
                       borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(15),
-                        bottomLeft: Radius.circular(15),
+                        topLeft: Radius.circular(8),
+                        bottomLeft: Radius.circular(8),
                       ),
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.1),
                     ),
                     child: Text(
                       '+973',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.secondary,
+                        fontWeight: FontWeight.w400,
+                        color: const Color.fromARGB(255, 0, 0, 0),
                       ),
                     ),
                   ),
@@ -153,13 +170,14 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
                   // Phone number input
                   Expanded(
                     child: TextField(
+                      focusNode: _phoneFocusNode,
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       maxLength: 9,
                       buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                       decoration: const InputDecoration(
                         hintText: '3333 3333',
-                        hintStyle: TextStyle(color: Colors.grey),
+                        hintStyle: TextStyle(color: Color(0xFFC3C3C3)),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(horizontal: 16),
                       ),
@@ -196,7 +214,7 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
               ),
             ),
             
-            const SizedBox(height: 30),
+            const SizedBox(height: 48),
             
             // Continue button
             CustomButton(

@@ -48,44 +48,46 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: AppColors.secondary),
+          icon: Image.asset(
+            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
+            width: 24,
+            height: 24,
+            color: const Color(0xFF003E3B),
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Log In',
           style: TextStyle(
+            fontFamily: 'SF Pro Display',
             color: AppColors.secondary,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w400,
           ),
         ),
         centerTitle: true,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(32.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center(
-              child: Text(
-                'Welcome Back!',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.secondary,
-                ),
+            const Text(
+              'Welcome Back!',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.secondary,
               ),
             ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                'Log in to continue',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.secondary.withValues(alpha: 0.7),
-                ),
+            const SizedBox(height: 4),
+            Text(
+              'Log in to continue',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.secondary.withValues(alpha: 0.7),
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
             
             // Email field
             CustomTextField(
@@ -95,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _emailController,
             ),
             
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             
             // Password field
             CustomTextField(
@@ -105,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _passwordController,
             ),
             
-            const SizedBox(height: 30),
+            const SizedBox(height: 48),
             
             // Log In button
             CustomButton(
@@ -113,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: _handleLogin,  // uses handler initialized above
             ),
             
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             
             // Forgot password?
             Center(
@@ -131,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             
             // Don't have an account? Sign Up
             Center(

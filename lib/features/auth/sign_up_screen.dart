@@ -71,21 +71,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: AppColors.secondary),
+          icon: Image.asset(
+            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
+            width: 24,
+            height: 24,
+            color: const Color(0xFF003E3B),
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Create an Account',
           style: TextStyle(
             color: AppColors.secondary,
-            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            fontFamily: 'SF Pro Display',
+            fontWeight: FontWeight.w400,
           ),
         ),
         centerTitle: true,
       ),
       body: SingleChildScrollView( // Makes screen scrollable for keyboard
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(32.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -96,7 +103,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 controller: _firstNameController,
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               
               // Last Name
               CustomTextField(
@@ -105,15 +112,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 controller: _lastNameController,
               ),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               
               // Gender
               const Text(
                 'Gender',
                 style: TextStyle(
+                  fontFamily: 'SF Pro Display',
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondary,
+                  fontWeight: FontWeight.w300,
+                  color: Color(0xFF003E3B),
                 ),
               ),
               const SizedBox(height: 8),
@@ -130,24 +138,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          color: _selectedGender == 'Male' 
-                              ? AppColors.primary 
-                              : AppColors.tertiary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(15),
-                          border: _selectedGender != 'Male'
-                              ? Border.all(color: Colors.grey.withValues(alpha: 0.3))
-                              : null,
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _selectedGender == 'Male' 
+                                ? const Color(0xFFDAF64F) 
+                                : const Color(0xFFDEDEDE),
+                            width: 1.0,
+                          ),
                         ),
                         child: Center(
                           child: Text(
                             'Male',
                             style: TextStyle(
+                              fontFamily: 'SF Pro Display',
                               color: _selectedGender == 'Male' 
-                                  ? Colors.black 
-                                  : AppColors.secondary,
-                              fontWeight: _selectedGender == 'Male' 
-                                  ? FontWeight.bold 
-                                  : FontWeight.normal,
+                                  ? const Color(0xFF003E3B) 
+                                  : const Color(0xFFC3C3C3),
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ),
@@ -166,24 +174,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          color: _selectedGender == 'Female' 
-                              ? AppColors.primary 
-                              : AppColors.tertiary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(15),
-                          border: _selectedGender != 'Female'
-                              ? Border.all(color: Colors.grey.withValues(alpha: 0.3))
-                              : null,
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _selectedGender == 'Female' 
+                                ? const Color(0xFFDAF64F) 
+                                : const Color(0xFFDEDEDE),
+                            width: 1.0,
+                          ),
                         ),
                         child: Center(
                           child: Text(
                             'Female',
                             style: TextStyle(
+                              fontFamily: 'SF Pro Display',
                               color: _selectedGender == 'Female' 
-                                  ? Colors.black 
-                                  : AppColors.secondary,
-                              fontWeight: _selectedGender == 'Female' 
-                                  ? FontWeight.bold 
-                                  : FontWeight.normal,
+                                  ? const Color(0xFF003E3B) 
+                                  : const Color(0xFFC3C3C3),
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ),
@@ -193,7 +201,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ],
               ),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 48),
               
               // Email
               CustomTextField(
@@ -203,7 +211,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 controller: _emailController,
               ),
               
-              const SizedBox(height: 30),
+              const SizedBox(height: 48),
               
               // Continue button
               CustomButton(
