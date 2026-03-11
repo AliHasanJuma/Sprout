@@ -32,9 +32,9 @@ class CustomNavBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildNavItem(0, 'Home', 'assets/UI icons package/PNG/Black/Navigation/House_01.png'),
-              _buildNavItem(1, 'Chat', 'assets/icons/Chat.png'),
-              _buildNavItem(2, 'Favourite', 'assets/icons/MG_Favourite_list.png'),
-              _buildNavItem(3, 'Shelves', 'assets/icons/Digital_shelf.png'),
+              _buildNavItem(1, 'Chat', 'assets/UI icons package/PNG/Black/Communication/Chat_Circle_Dots.png'),
+              _buildNavItem(2, 'Favourite', 'assets/UI icons package/PNG/Black/Interface/Heart_01.png'),
+              _buildNavItem(3, 'Shelves', 'assets/UI icons package/PNG/Black/Interface/Shopping_Bag_02.png'),
             ],
           ),
         ),
@@ -64,8 +64,8 @@ class CustomNavBar extends StatelessWidget {
               // Icon 
               Image.asset(
                 iconPath,
-                width: 48, // Size
-                height: 48, // Size
+                width: 32, // Size
+                height: 32, // Size
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 2), // Reduced space
