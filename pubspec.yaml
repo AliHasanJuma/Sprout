@@ -65,6 +65,7 @@ flutter:
   #   - images/a_dot_ham.jpeg
   assets:
       - assets/UI icons package/PNG/Black/Arrow/
+      - assets/UI icons package/PNG/Black/Navigation/
       - assets/icons/
       - assets/logo/
 
