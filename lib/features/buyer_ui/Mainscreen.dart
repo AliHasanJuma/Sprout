@@ -1,4 +1,8 @@
 // lib/features/home/main_screen.dart
+import 'package:flutter/material.dart';
+import '../../shared/widgets/navbar.dart';
+import 'home_page.dart';
+// Import the other pages here so they work with the navbar
 class MainScreen extends StatefulWidget {
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -7,7 +11,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   
-  // List of your pages
+  // List of your pages (add the pages to remove error)
   final List<Widget> _pages = [
     const HomePage(),      // Your homepage content
     const ChatPage(),      // To be built later
