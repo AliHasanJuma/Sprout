@@ -34,6 +34,16 @@ class _VerificationScreenState extends State<VerificationScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   @override
+  void initState() {
+    super.initState();
+    for (var node in _focusNodes) {
+      node.addListener(() {
+        setState(() {});
+      });
+    }
+  }
+
+  @override
   void dispose() {
     for (var controller in _controllers) {
       controller.dispose();
@@ -66,51 +76,54 @@ class _VerificationScreenState extends State<VerificationScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: AppColors.secondary),
+          icon: Image.asset(
+            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
+            width: 24,
+            height: 24,
+            color: const Color(0xFF003E3B),
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Verifying',
           style: TextStyle(
+            fontFamily: 'SF Pro Display',
+            fontWeight: FontWeight.w400,
             color: AppColors.secondary,
-            fontWeight: FontWeight.bold,
           ),
         ),
         centerTitle: true,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(32.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
             
             // Big bold text
-            const Center(
-              child: Text(
-                'Enter Verification Code',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.secondary,
-                ),
+            const Text(
+              'Enter Verification Code',
+              style: TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.secondary,
               ),
             ),
             
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             
             // Smaller text with phone number
-            Center(
-              child: Text(
-                'We sent you a code via SMS.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.secondary.withValues(alpha: 0.7),
-                ),
+            Text(
+              'We sent you a code via SMS.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.secondary.withValues(alpha: 0.7),
               ),
             ),
             
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             
             // Six OTP boxes
             Row(
@@ -120,11 +133,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   width: 50,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: AppColors.tertiary.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(15),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: AppColors.primary,
-                      width: 2,
+                      color: _focusNodes[index].hasFocus
+                          ? const Color(0xFFDAF64F)
+                          : const Color(0xFFDEDEDE),
+                      width: 1,
                     ),
                   ),
                   child: TextField(
@@ -136,7 +151,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.secondary,
+                      color: Color(0xFF003E3B),
                     ),
                     decoration: const InputDecoration(
                       counterText: '',
@@ -151,19 +166,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
             const SizedBox(height: 30),
             
             // Resend code text (bold, no functionality)
-            const Center(
-              child: Text(
-                'Resend code?',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.secondary,
-                  decoration: TextDecoration.underline,
-                ),
+            
+            const Text(
+              'Resend code?',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.secondary,
+                decoration: TextDecoration.underline,
               ),
             ),
             
-            const SizedBox(height: 40),
+            const SizedBox(height: 48),
             
             // Continue button
             CustomButton(
