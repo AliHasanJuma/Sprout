@@ -214,7 +214,6 @@ if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || gender == null) {
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
               ),
-<<<<<<< HEAD
               CustomTextField(
   label: 'Password',
   hintText: 'Enter your password',
@@ -222,10 +221,6 @@ if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || gender == null) {
   obscureText: true,
 ),
               const SizedBox(height: 30),
-=======
-              
-              const SizedBox(height: 48),
->>>>>>> fixing-UI
               
               // Continue button
               CustomButton(

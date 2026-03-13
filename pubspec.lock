@@ -488,7 +488,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.9"
->>>>>>> fixing-UI
   typed_data:
     dependency: transitive
     description:
