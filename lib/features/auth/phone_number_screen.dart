@@ -5,6 +5,7 @@ import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'login_screen.dart';
 import 'verification_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class PhoneNumberScreen extends StatefulWidget {
   final String firstName;
@@ -67,19 +68,39 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
     String fullNumber = '+973$phoneNumber';
     print('Full number for API: $fullNumber');
     
-    // TODO: Add actual backend logic AND REMOVE THE PRINT STATEMENT ABOVE IT'S ONLY USED FOR TESTING VALUES
+    FirebaseAuth.instance.verifyPhoneNumber(
+  phoneNumber: fullNumber,
+
+  verificationCompleted: (PhoneAuthCredential credential) async {
+    await FirebaseAuth.instance.signInWithCredential(credential);
+  },
+
+  verificationFailed: (FirebaseAuthException e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.message ?? "Verification failed")),
+    );
+  },
+
+  codeSent: (String verificationId, int? resendToken) {
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => VerificationScreen(
+        builder: (_) => VerificationScreen(
           firstName: widget.firstName,
           lastName: widget.lastName,
           email: widget.email,
           gender: widget.gender,
-          phoneNumber: phoneNumber,
+          phoneNumber: fullNumber,
+          verificationId: verificationId,
         ),
       ),
     );
+
+  },
+
+  codeAutoRetrievalTimeout: (String verificationId) {},
+);
   }
 
   @override

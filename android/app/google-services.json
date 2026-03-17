@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1004085423869",
+    "project_id": "sprout-c5452",
+    "storage_bucket": "sprout-c5452.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1004085423869:android:e84ed73c782a5056e5d894",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbImZmzwVRXEZLvIi7bJxCF50uukgVTMc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1004085423869:android:9b06311f197f7f06e5d894",
+        "android_client_info": {
+          "package_name": "com.mycompany.sprout"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbImZmzwVRXEZLvIi7bJxCF50uukgVTMc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
