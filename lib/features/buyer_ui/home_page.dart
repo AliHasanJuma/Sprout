@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Add this import
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/search_bar.dart';
-import '../../shared/widgets/navbar.dart'; // Only for testing
-
+import '../../shared/widgets/navbar.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,6 +18,17 @@ class _HomePageState extends State<HomePage> {
   final int _totalCategories = 10;
   final double _itemWidth = 260; // Width of each category button
   final double _spacing = 12; // margin.only(right: 12)
+  
+  // Get current user
+  User? get _user => FirebaseAuth.instance.currentUser;
+  
+  // Extract first name from display name
+  String get _firstName {
+    if (_user?.displayName != null) {
+      return _user!.displayName!.split(' ').first;
+    }
+    return 'there';
+  }
 
   @override
   void initState() {
@@ -64,9 +75,8 @@ class _HomePageState extends State<HomePage> {
                   bottomLeft: Radius.circular(30),
                   bottomRight: Radius.circular(30),
                 ),
-                // Optional: Add zigzag effect with multiple containers
               ),
-              padding: const EdgeInsets.only(top: 48, left: 32, right: 32, bottom: 24),
+              padding: const EdgeInsets.only(top: 48, left: 32, right: 32, bottom: 32), // Increased bottom padding
               child: Column(
                 children: [
                   // Top row with logo and profile icon
@@ -97,13 +107,30 @@ class _HomePageState extends State<HomePage> {
                           ],
                           image: DecorationImage(
                             image: AssetImage('assets/icons/Profile_picture.png'),
-                            fit: BoxFit.cover, // This ensures the square image fills the circle
+                            fit: BoxFit.cover,
                           ),
                         ),
                       ),
                     ],
                   ),
+                  
+                  // Welcome back text - added here
                   const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Welcome back, $_firstName',
+                      style: const TextStyle(
+                        fontFamily: 'SF Pro Display',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.secondary,
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16), // Space between text and search bar
+                  
                   // Search bar
                   const CustomSearchBar(),
                 ],
@@ -130,7 +157,7 @@ class _HomePageState extends State<HomePage> {
             // Horizontal list of product images
             SizedBox(
               height: 100,
-              child: ListView.builder(  //REPLACE LIST BUILDER WITH BACKEND
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 itemCount: 8,
@@ -181,8 +208,8 @@ class _HomePageState extends State<HomePage> {
             // Horizontal scrollable category buttons
             SizedBox(
               height: 140,
-              child: ListView.builder( //REPLACE LIST BUILDER WITH BACKEND
-                controller: _categoryScrollController, // controller
+              child: ListView.builder(
+                controller: _categoryScrollController,
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 itemCount: _totalCategories,
@@ -258,7 +285,7 @@ class _HomePageState extends State<HomePage> {
             // Horizontal list of sellers
             SizedBox(
               height: 140,
-              child: ListView.builder( //REPLACE LIST BUILDER WITH BACKEND
+              child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 itemCount: 6,

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
 import 'login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'homescreen.dart';
+import 'all_set.dart'; // Add this import
 
 class VerificationScreen extends StatefulWidget {
   final String firstName;
@@ -13,7 +12,6 @@ class VerificationScreen extends StatefulWidget {
   final String? gender;
   final String phoneNumber;
   final String verificationId;
-
 
   const VerificationScreen({
     super.key,
@@ -100,7 +98,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
-            
+
             // Big bold text
             const Text(
               'Enter Verification Code',
@@ -111,9 +109,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 color: AppColors.secondary,
               ),
             ),
-            
+
             const SizedBox(height: 4),
-            
+
             // Smaller text with phone number
             Text(
               'We sent you a code via SMS.',
@@ -122,9 +120,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 color: AppColors.secondary.withValues(alpha: 0.7),
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Six OTP boxes
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -162,11 +160,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 );
               }),
             ),
-            
+
             const SizedBox(height: 30),
-            
-            // Resend code text (bold, no functionality)
-            
+
+            // Resend code text
             const Text(
               'Resend code?',
               style: TextStyle(
@@ -176,46 +173,46 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 decoration: TextDecoration.underline,
               ),
             ),
-            
+
             const SizedBox(height: 48),
-            
+
             // Continue button
             CustomButton(
               text: 'Continue',
               onPressed: () async {
+                String code = '';
+                for (var controller in _controllers) {
+                  code += controller.text;
+                }
 
-  String code = '';
-  for (var controller in _controllers) {
-    code += controller.text;
-  }
+                try {
+                  PhoneAuthCredential credential = PhoneAuthProvider.credential(
+                    verificationId: widget.verificationId,
+                    smsCode: code,
+                  );
 
-  try {
+                  await FirebaseAuth.instance.signInWithCredential(credential);
 
-    PhoneAuthCredential credential = PhoneAuthProvider.credential(
-      verificationId: widget.verificationId,
-      smsCode: code,
-    );
-
-    await FirebaseAuth.instance.signInWithCredential(credential);
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const Homescreen(),
-      ),
-    );
-
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invalid verification code')),
-    );
-  }
-}
-        ,
+                  // Navigate to All Set screen instead of Homescreen
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AllSetScreen(
+                        firstName: widget.firstName,
+                        lastName: widget.lastName,
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Invalid verification code')),
+                  );
+                }
+              },
               backgroundColor: AppColors.primary,
               textColor: Colors.black,
             ),
-            
+
             const SizedBox(height: 20),
           ],
         ),
