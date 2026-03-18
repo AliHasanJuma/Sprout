@@ -1,12 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
-import 'package:my_app/features/auth/welcome_screen.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'sign_up_screen.dart';
-import 'homescreen.dart';
+import '../buyer_ui/Mainscreen.dart'; 
 
 class LoginScreen extends StatefulWidget {  
   const LoginScreen({super.key});
@@ -26,25 +25,36 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {  // login handler
-  
+  Future<void> _handleLogin() async {
     try {
-    await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: _emailController.text,
-      password: _passwordController.text,
-    );
-    
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const Homescreen()),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString())),
-    );
-  } 
+      if (!mounted) return;
 
+      // Navigate to buyer UI homepage
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => MainScreen()), 
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = 'Invalid email or password';
+      if (e.code == 'user-not-found') {
+        message = 'No user found with this email';
+      } else if (e.code == 'wrong-password') {
+        message = 'Wrong password';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   @override
@@ -119,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // Log In button
             CustomButton(
               text: 'Log In',
-              onPressed: _handleLogin,  // uses handler initialized above
+              onPressed: _handleLogin,
             ),
             
             const SizedBox(height: 8),
