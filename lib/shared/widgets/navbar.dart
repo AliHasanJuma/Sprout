@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -14,27 +13,46 @@ class CustomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.primary, // Neon green background
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        // Lighter shadow matching Figma: ~15% opacity, soft upward blur
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+            color: Color(0x26000000), // 15% black
+            offset: Offset(0, -2),
+            blurRadius: 8,
+            spreadRadius: 0,
           ),
         ],
       ),
       child: SafeArea(
-        child: Container(
-          height: 80, // Fixed height for navbar
-          padding: const EdgeInsets.symmetric(horizontal: 4), //  padding
+        top: false,
+        child: SizedBox(
+          height: 86,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildNavItem(0, 'Home', 'assets/UI icons package/PNG/Black/Navigation/House_01.png'),
-              _buildNavItem(1, 'Chat', 'assets/UI icons package/PNG/Black/Communication/Chat_Circle_Dots.png'),
-              _buildNavItem(2, 'Favourite', 'assets/UI icons package/PNG/Black/Interface/Heart_01.png'),
-              _buildNavItem(3, 'Shelves', 'assets/UI icons package/PNG/Black/Interface/Shopping_Bag_02.png'),
+              _buildNavItem(
+                0,
+                'Home',
+                iconPath: 'assets/UI icons package/PNG/Black/Navigation/House_01.png',
+              ),
+              _buildNavItem(
+                1,
+                'Chat',
+                iconPath: 'assets/UI icons package/PNG/Black/Communication/Chat_Circle_Dots.png',
+              ),
+              _buildNavItem(
+                2,
+                'Favourite',
+                iconPath: 'assets/UI icons package/PNG/Black/Interface/Heart_01.png',
+              ),
+              // Shelves icon from assets
+              _buildNavItem(
+                3,
+                'Shelves',
+                iconPath: 'assets/UI icons package/PNG/Black/Edit/Rows.png',
+              ),
             ],
           ),
         ),
@@ -42,47 +60,45 @@ class CustomNavBar extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(int index, String label, String iconPath) {
-    final isSelected = currentIndex == index;
-    
+  Widget _buildNavItem(
+    int index,
+    String label, {
+    String? iconPath,
+    IconData? iconData,
+  }) {
+    final isActive = currentIndex == index;
+    // Active: black (#000000), Inactive: grey (#9F9F9F)
+    final color = isActive ? Colors.black : const Color(0xFF9F9F9F);
+
     return Expanded(
       child: GestureDetector(
         onTap: () => onTap(index),
         behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 4), //  vertical padding
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15),
-            color: isSelected 
-                ? AppColors.secondary.withValues(alpha: 0.2)
-                : Colors.transparent,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Icon 
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Use Icon widget if iconData provided, otherwise Image.asset
+            if (iconData != null)
+              Icon(iconData, size: 24, color: color)
+            else if (iconPath != null)
               Image.asset(
                 iconPath,
-                width: 32, // Size
-                height: 32, // Size
+                width: 24,
+                height: 24,
                 fit: BoxFit.contain,
+                color: color,
+                colorBlendMode: BlendMode.srcIn,
               ),
-              const SizedBox(height: 2), // Reduced space
-              // Label - with original colors only
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11, // Slightly smaller
-                  fontFamily: 'SF Pro Display',
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected 
-                      ? AppColors.secondary // Dark green for selected
-                      : Colors.black, // Black for unselected
-                ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 11,
+                color: color,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

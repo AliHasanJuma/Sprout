@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Add this import
-import '../../core/constants/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../shared/widgets/search_bar.dart';
-import '../../shared/widgets/navbar.dart';
+import '../../screens/profile_page.dart';
+import '../../screens/category_page.dart';
+import '../../screens/store_page.dart';
+import '../../screens/search_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,17 +15,14 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // ADD ScrollController and index tracking
-  final ScrollController _categoryScrollController = ScrollController();
-  int _currentCategoryIndex = 0;
-  final int _totalCategories = 10;
-  final double _itemWidth = 260; // Width of each category button
-  final double _spacing = 12; // margin.only(right: 12)
-  
-  // Get current user
+  // Banner page controller for the scrollable carousel
+  late final PageController _pageController;
+  int _bannerPage = 0;
+
+  // Firebase current user
   User? get _user => FirebaseAuth.instance.currentUser;
-  
-  // Extract first name from display name
+
+  // Extract first name from display name; fallback to 'there'
   String get _firstName {
     if (_user?.displayName != null) {
       return _user!.displayName!.split(' ').first;
@@ -33,30 +33,48 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _categoryScrollController.addListener(_updateCategoryIndex);
-  }
-
-  void _updateCategoryIndex() {
-    // Calculate which category is most visible based on scroll position
-    double scrollPosition = _categoryScrollController.offset;
-    int newIndex = ((scrollPosition + 32) / (_itemWidth + _spacing)).round();
-    
-    // Clamp between 0 and total-1
-    newIndex = newIndex.clamp(0, _totalCategories - 1);
-    
-    if (newIndex != _currentCategoryIndex) {
-      setState(() {
-        _currentCategoryIndex = newIndex;
-      });
-    }
+    _pageController = PageController();
   }
 
   @override
   void dispose() {
-    _categoryScrollController.removeListener(_updateCategoryIndex);
-    _categoryScrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
+
+  // ── Category data ──────────────────────────────────────────────────────────
+  static const List<_Category> _categories = [
+    _Category('Sweet &\nBaking','assets/images/category/Baking.png'),
+    _Category('Gifts','assets/images/category/gift.png'),
+    _Category('Perfumes','assets/images/category/perfume.png'),
+    _Category('Home\nCooking','assets/images/category/home-cooking.png'),
+    _Category('Crafts &\nHome Decor','assets/images/category/Crafts.png'),
+    _Category('Fashion','assets/images/category/fastion.png'),
+  ];
+
+  // ── Near-me store data ─────────────────────────────────────────────────────
+  static const List<_Store> _stores = [
+    _Store(
+      name: 'Honey & Thyme',
+      rating: 3.0,
+      imagePath: 'assets/images/home page widgets/0001.png',
+    ),
+    _Store(
+      name: 'Sweet Bloom',
+      rating: 3.0,
+      imagePath: 'assets/images/home page widgets/0001.png',
+    ),
+    _Store(
+      name: 'Craft Corner',
+      rating: 3.5,
+      imagePath: 'assets/images/home page widgets/0001.png',
+    ),
+    _Store(
+      name: 'Aroma Studio',
+      rating: 3.5,
+      imagePath: 'assets/images/home page widgets/0001.png',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -66,297 +84,407 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // NEON TOP SECTION
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
-              ),
-              padding: const EdgeInsets.only(top: 48, left: 32, right: 32, bottom: 32), // Increased bottom padding
-              child: Column(
-                children: [
-                  // Top row with logo and profile icon
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Logo (top left)
-                      Image.asset(
-                        'assets/logo/logodark_green.png',
-                        width: 100,
-                        height: 40,
-                        fit: BoxFit.contain,
-                      ),
-                      // Profile icon (top right)
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 5,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                          image: DecorationImage(
-                            image: AssetImage('assets/icons/Profile_picture.png'),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  // Welcome back text - added here
-                  const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Welcome back, $_firstName',
-                      style: const TextStyle(
-                        fontFamily: 'SF Pro Display',
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.secondary,
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16), // Space between text and search bar
-                  
-                  // Search bar
-                  const CustomSearchBar(),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // RANDOM PRODUCTS SECTION
-            Padding(
-              padding: const EdgeInsets.only(left: 32),
-              child: Text(
-                'Recommended for you',
-                style: TextStyle(
-                  fontFamily: 'SF Pro Display',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Horizontal list of product images
-            SizedBox(
-              height: 100,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                itemCount: 8,
-                itemBuilder: (context, index) {
-                  return Container(
-                    width: 100,
-                    height: 64,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Color(0xFFDEDEDE),
-                        width: 1,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Item ${index + 1}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.secondary,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            
+            // 1. Lime-green SVG wave header with floating search bar
+            _buildWaveHeader(),
+
+            // 24px accounts for the search bar half below the wave +
+            // 16px gap before the Categories title
+            const SizedBox(height: 40),
+
+            // 2. Categories
+            _buildCategories(),
+
+            const SizedBox(height: 28),
+
+            // 4. Banner / carousel card
+            _buildBanner(),
+
+            const SizedBox(height: 28),
+
+            // 5. Near me
+            _buildNearMe(),
+
             const SizedBox(height: 32),
-            
-            // CATEGORY SCROLLING BUTTONS
-            Padding(
-              padding: const EdgeInsets.only(left: 32),
-              child: Text(
-                'Categories',
-                style: TextStyle(
-                  fontFamily: 'SF Pro Display',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Horizontal scrollable category buttons
-            SizedBox(
-              height: 140,
-              child: ListView.builder(
-                controller: _categoryScrollController,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                itemCount: _totalCategories,
-                itemBuilder: (context, index) {
-                  return Container(
-                    width: _itemWidth,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Category ${index + 1}',
-                        style: const TextStyle(
-                          fontFamily: 'SF Pro Display',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            
-            // Scroll dots indicator
-            const SizedBox(height: 8),
-            Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(_totalCategories, (index) {
-                  return Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: index == _currentCategoryIndex 
-                          ? AppColors.primary 
-                          : Colors.grey.withValues(alpha: 0.3),
-                    ),
-                  );
-                }),
-              ),
-            ),
-            
-            const SizedBox(height: 32),
-            
-            // NEAR ME SECTION
-            Padding(
-              padding: const EdgeInsets.only(left: 32),
-              child: Text(
-                'Near Me',
-                style: TextStyle(
-                  fontFamily: 'SF Pro Display',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Horizontal list of sellers
-            SizedBox(
-              height: 140,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                itemCount: 6,
-                itemBuilder: (context, index) {
-                  return Container(
-                    width: 96,
-                    margin: const EdgeInsets.only(right: 16),
-                    child: Column(
-                      children: [
-                        // Seller image
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(40),
-                            border: Border.all(
-                              color: Color(0xFFDEDEDE),
-                              width: 2,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '👤',
-                              style: TextStyle(fontSize: 30),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Seller name
-                        Text(
-                          'Seller ${index + 1}',
-                          style: const TextStyle(
-                            fontFamily: 'SF Pro Display',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        // Rating
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.star,
-                              size: 12,
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              '4.${index + 5}',
-                              style: TextStyle(
-                                fontFamily: 'SF Pro Display',
-                                fontSize: 10,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            
-            const SizedBox(height: 100), // Space for navbar
           ],
         ),
       ),
     );
   }
+
+  // ── 1. WAVE HEADER ─────────────────────────────────────────────────────────
+  // Uses bowdesign.svg as the lime-green wave background.
+  // The search bar is floated at the wave boundary via Positioned(bottom: -24),
+  // so it sits half on green and half on white.
+  Widget _buildWaveHeader() {
+    return SizedBox(
+      height: 200,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // ── SVG wave background ──────────────────────────────────────────
+          SvgPicture.asset(
+            'assets/Essentials/bowdesign.svg',
+            width: double.infinity,
+            height: 200,
+            fit: BoxFit.fill,
+            // Override baked-in #daf64f with the Figma spec colour
+            colorFilter: const ColorFilter.mode(
+              Color(0xFFCDEB45),
+              BlendMode.srcIn,
+            ),
+          ),
+
+          // ── Header content: logo + welcome text + profile avatar ─────────
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: 8,
+                left: 24,
+                right: 24,
+                bottom: 56, // keeps content above the wave curve
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Logo + welcome message grouped on the left
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Image.asset(
+                        'assets/logo/logoBlack_fullsize.png',
+                        width: 100,
+                        height: 40,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Wellcome back, $_firstName',
+                        style: const TextStyle(
+                          fontFamily: 'SF Pro Display',
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Profile avatar — navigates to ProfilePage
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfilePage()),
+                    ),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(
+                          image: AssetImage('assets/icons/Profile_picture.png'),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Floating search bar — straddles the wave / white boundary ────
+          // Tapping navigates to SearchPage
+          Positioned(
+            bottom: -8, // half of 48px height → centered on the boundary
+            left: 24,
+            right: 24,
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchPage()),
+              ),
+              child: const AbsorbPointer(
+                child: CustomSearchBar(hintText: 'Search for anything'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 3. CATEGORIES ──────────────────────────────────────────────────────────
+  Widget _buildCategories() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            'Categories',
+            style: TextStyle(
+              fontFamily: 'SF Pro Display',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Horizontal scrollable row — 65×65 image + label below
+        SizedBox(
+          height: 104, // 65 image + 6 gap + ~28 label (2 lines × 10px + leading)
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            itemCount: _categories.length,
+            itemBuilder: (context, index) {
+              return _buildCategoryItem(_categories[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryItem(_Category cat) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const CategoryPage()),
+      ),
+      child: Container(
+        width: 78,
+        margin: const EdgeInsets.only(right: 14),
+        child: Column(
+          children: [
+            // 65×65 rounded image; grey fallback until assets are added
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                cat.imagePath,
+                width: 65,
+                height: 65,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  width: 65,
+                  height: 65,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEEEEE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              cat.label,
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 10,
+                color: Colors.black,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 4. BANNER / CAROUSEL ───────────────────────────────────────────────────
+  Widget _buildBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        children: [
+          // Horizontally scrollable PageView carousel
+          SizedBox(
+            height: 170,
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: 3,
+              onPageChanged: (page) => setState(() => _bannerPage = page),
+              itemBuilder: (context, index) => GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CategoryPage()),
+                ),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7E7).withValues(alpha: 0.49),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/home page widgets/0001.png',
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (_, _, _) => Container(
+                        color: const Color(0xFFDDE8B0),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // Pagination dots — animate as user swipes
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(3, (i) {
+              final isActive = i == _bannerPage;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: isActive ? 20 : 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.black : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 5. NEAR ME ─────────────────────────────────────────────────────────────
+  Widget _buildNearMe() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            'Near me',
+            style: TextStyle(
+              fontFamily: 'SF Pro Display',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        SizedBox(
+          height: 140, // 80 image + 8 gap + ~12 name + 4 gap + 12 stars
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            itemCount: _stores.length,
+            itemBuilder: (context, index) {
+              return _buildStoreCard(_stores[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStoreCard(_Store store) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => StorePage(storeName: store.name),
+        ),
+      ),
+      child: Container(
+        width: 100,
+        margin: const EdgeInsets.only(right: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Store image placeholder (80×80, rounded 12, grey)
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD9D9D9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Store name — centered
+            Text(
+              store.name,
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: Colors.black,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+
+            const SizedBox(height: 4),
+
+            // Star rating — centered
+            Center(child: _buildStars(store.rating)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a row of 5 star icons supporting full and half stars.
+  Widget _buildStars(double rating) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final full = i < rating.floor();
+        final half = !full && (rating - i) >= 0.5 && (rating - i) < 1.0;
+        return Icon(
+          full
+              ? Icons.star
+              : half
+                  ? Icons.star_half
+                  : Icons.star_border,
+          size: 12,
+          color: Colors.amber,
+        );
+      }),
+    );
+  }
+}
+
+// ── Simple immutable category model ─────────────────────────────────────────
+class _Category {
+  final String label;
+  final String imagePath;
+  const _Category(this.label, this.imagePath);
+}
+
+// ── Simple immutable store model ─────────────────────────────────────────────
+class _Store {
+  final String name;
+  final double rating;
+  final String imagePath;
+  const _Store({
+    required this.name,
+    required this.rating,
+    required this.imagePath,
+  });
 }
