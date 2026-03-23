@@ -5,6 +5,7 @@ import '../../screens/profile_page.dart';
 import '../../screens/category_page.dart';
 import '../../screens/store_page.dart';
 import '../../screens/search_page.dart';
+import '../../data/temp_data.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -396,11 +397,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildStoreCard(_Store store) {
+    // Find matching temp Store object for navigation
+    final tempStore = tempStores.firstWhere(
+      (s) => s.name == store.name,
+      orElse: () => tempStores.first,
+    );
+
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => StorePage(storeName: store.name),
+          builder: (_) => StorePage(store: tempStore),
         ),
       ),
       child: Container(
