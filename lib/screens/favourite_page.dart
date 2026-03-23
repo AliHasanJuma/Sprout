@@ -36,8 +36,8 @@ class FavouritePageState extends State<FavouritePage> {
             // Heart + sad face illustration
             Image.asset(
               'assets/icons/MG_favourite_list.png',
-              width: 160,
-              height: 160,
+              width: 120,
+              height: 120,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => const Icon(
                 Icons.favorite_border,

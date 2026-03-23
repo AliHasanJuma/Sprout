@@ -40,7 +40,7 @@ class CustomNavBar extends StatelessWidget {
               _buildNavItem(
                 1,
                 'Chat',
-                iconPath: 'assets/UI icons package/PNG/Black/Communication/Chat_Circle_Dots.png',
+                iconPath: 'assets/UI icons package/PNG/Black/Communication/Chat_Circle.png',
               ),
               _buildNavItem(
                 2,
