@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
-import 'login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'all_set.dart'; // Add this import
 
@@ -185,6 +184,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   code += controller.text;
                 }
 
+                // Capture before any async gap
+                final nav = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+
                 try {
                   PhoneAuthCredential credential = PhoneAuthProvider.credential(
                     verificationId: widget.verificationId,
@@ -193,9 +196,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
                   await FirebaseAuth.instance.signInWithCredential(credential);
 
-                  // Navigate to All Set screen instead of Homescreen
-                  Navigator.pushReplacement(
-                    context,
+                  // Save display name so HomePage can greet the user by name
+                  final user = FirebaseAuth.instance.currentUser;
+                  await user?.updateDisplayName(
+                    '${widget.firstName} ${widget.lastName}',
+                  );
+
+                  if (!mounted) return;
+                  nav.pushReplacement(
                     MaterialPageRoute(
                       builder: (_) => AllSetScreen(
                         firstName: widget.firstName,
@@ -204,7 +212,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     ),
                   );
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(content: Text('Invalid verification code')),
                   );
                 }

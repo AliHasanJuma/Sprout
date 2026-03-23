@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/constants/app_colors.dart';
 import 'welcome_screen.dart';
+import '../buyer_ui/Mainscreen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,11 +15,19 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Navigate to welcome screen after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
+    Future.delayed(const Duration(seconds: 2), () async {
+      // authStateChanges().first waits for Firebase to restore the persisted
+      // session before we decide — more reliable than currentUser on cold start
+      // across all platforms (Android, iOS, web).
+      final user = await FirebaseAuth.instance.authStateChanges().first;
+      if (!mounted) return;
+      if (user != null) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+          MaterialPageRoute(builder: (_) => MainScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
         );
       }
     });

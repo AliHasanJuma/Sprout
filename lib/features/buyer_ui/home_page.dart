@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../shared/widgets/search_bar.dart';
 import '../../screens/profile_page.dart';
 import '../../screens/category_page.dart';
@@ -121,16 +120,13 @@ class _HomePageState extends State<HomePage> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // ── SVG wave background ──────────────────────────────────────────
-          SvgPicture.asset(
-            'assets/Essentials/bowdesign.svg',
-            width: double.infinity,
-            height: 200,
-            fit: BoxFit.fill,
-            // Override baked-in #daf64f with the Figma spec colour
-            colorFilter: const ColorFilter.mode(
-              Color(0xFFCDEB45),
-              BlendMode.srcIn,
+          // ── Bow-shaped background clipped with _BowClipper ───────────────
+          ClipPath(
+            clipper: _BowClipper(),
+            child: Container(
+              width: double.infinity,
+              height: 200,
+              color: const Color(0xFFCDEB45),
             ),
           ),
 
@@ -468,6 +464,34 @@ class _HomePageState extends State<HomePage> {
       }),
     );
   }
+}
+
+// ── Bow clipper derived from Figma SVG (viewBox 0 0 570.4 274) ───────────────
+// The bottom edge arches upward to a peak of 51.8 / 274 ≈ 18.9% of the height
+// at the horizontal centre. A quadratic bezier midpoint sits halfway between
+// the endpoints and the control point, so the control Y must be placed 2× the
+// desired peak depth above the baseline to produce the correct visual arc.
+class _BowClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    const double svgHeight = 274.0;
+    const double svgPeakDepth = 51.8; // distance the arc rises from the bottom
+    final double controlY =
+        size.height - (size.height * (svgPeakDepth / svgHeight) * 2);
+
+    final path = Path();
+    path.lineTo(0, size.height);          // bottom-left
+    path.quadraticBezierTo(
+      size.width / 2, controlY,           // control point: centred, arched up
+      size.width, size.height,            // bottom-right
+    );
+    path.lineTo(size.width, 0);           // top-right
+    path.close();                         // back to top-left (0, 0)
+    return path;
+  }
+
+  @override
+  bool shouldReclip(_BowClipper oldClipper) => false;
 }
 
 // ── Simple immutable category model ─────────────────────────────────────────
