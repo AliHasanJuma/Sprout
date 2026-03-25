@@ -23,15 +23,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
         return windows;
       case TargetPlatform.linux:
@@ -48,7 +42,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBXOMIqDJ2Du659Q3pqhnPNZyn7bP5_i_A',
-    appId: '1:1004085423869:web:2426ce19fa4982e1e5d894',
+    appId: '1:1004085423869:web:1193555a210a59b4e5d894',
     messagingSenderId: '1004085423869',
     projectId: 'sprout-c5452',
     authDomain: 'sprout-c5452.firebaseapp.com',
@@ -71,4 +65,23 @@ class DefaultFirebaseOptions {
     authDomain: 'sprout-c5452.firebaseapp.com',
     storageBucket: 'sprout-c5452.firebasestorage.app',
   );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyD9vOI6ImN-uMfP7lpKCjHGLFYKlnr9fLI',
+    appId: '1:1004085423869:ios:ccf69f682b123f3ee5d894',
+    messagingSenderId: '1004085423869',
+    projectId: 'sprout-c5452',
+    storageBucket: 'sprout-c5452.firebasestorage.app',
+    iosBundleId: 'com.example.myApp',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyD9vOI6ImN-uMfP7lpKCjHGLFYKlnr9fLI',
+    appId: '1:1004085423869:ios:ccf69f682b123f3ee5d894',
+    messagingSenderId: '1004085423869',
+    projectId: 'sprout-c5452',
+    storageBucket: 'sprout-c5452.firebasestorage.app',
+    iosBundleId: 'com.example.myApp',
+  );
+
 }

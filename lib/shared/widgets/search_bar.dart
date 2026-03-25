@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 
 class CustomSearchBar extends StatelessWidget {
   final TextEditingController? controller;
   final Function(String)? onSubmitted;
+  // Figma spec: "Search for anything", 13 px, #C3C3C3
+  final String hintText;
 
   const CustomSearchBar({
     super.key,
     this.controller,
     this.onSubmitted,
+    this.hintText = 'Search for anything',
   });
 
   @override
@@ -17,12 +19,14 @@ class CustomSearchBar extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(70),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            // 0px 3px 20px -8px rgba(0,0,0,0.25)
+            color: Color.fromRGBO(0, 0, 0, 0.25),
+            offset: Offset(0, 3),
+            blurRadius: 20,
+            spreadRadius: -8,
           ),
         ],
       ),
@@ -30,19 +34,19 @@ class CustomSearchBar extends StatelessWidget {
         controller: controller,
         onSubmitted: onSubmitted,
         decoration: InputDecoration(
-          hintText: 'Search for something',
-          hintStyle: TextStyle(
-            color: Colors.grey[400],
+          hintText: hintText,
+          hintStyle: const TextStyle(
+            color: Color(0xFFC3C3C3),
             fontFamily: 'SF Pro Display',
-            fontSize: 16,
+            fontSize: 13,
           ),
-          prefixIcon: Icon(
+          prefixIcon: const Icon(
             Icons.search,
-            color: AppColors.secondary,
-            size: 24,
+            color: Color(0xFF003E3B),
+            size: 22,
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
     );
