@@ -3,8 +3,61 @@ import 'package:flutter/material.dart';
 import '../data/temp_data.dart';
 import 'inner_chat_page.dart';
 
-class ChatsPage extends StatelessWidget {
+class ChatsPage extends StatefulWidget {
   const ChatsPage({super.key});
+
+  @override
+  State<ChatsPage> createState() => _ChatsPageState();
+}
+
+class _ChatsPageState extends State<ChatsPage> {
+  // Create a mutable copy of chat threads
+  List<ChatThread> _chatThreads = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Copy the data from tempChatThreads to make it mutable
+    _chatThreads = List.from(tempChatThreads);
+  }
+
+  // Function to delete a chat thread
+  void _deleteChat(int index) {
+    setState(() {
+      _chatThreads.removeAt(index);
+    });
+    
+    // Show a snackbar to confirm deletion
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Chat deleted'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    
+    // TODO: Later, also delete from Firebase
+  }
+
+  // Function to mark chat as read when pressed
+  void _markChatAsRead(int index) {
+    setState(() {
+      final thread = _chatThreads[index];
+      // Create a new ChatThread with unreadCount set to 0
+      _chatThreads[index] = ChatThread(
+        id: thread.id,
+        contactName: thread.contactName,
+        initials: thread.initials,
+        lastMessage: thread.lastMessage,
+        timeAgo: thread.timeAgo,
+        unreadCount: 0, // Set to 0
+        isOnline: thread.isOnline,
+        storeId: thread.storeId,
+        messages: thread.messages,
+      );
+    });
+    
+    // TODO: Later, also update read status in Firebase
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +87,33 @@ class ChatsPage extends StatelessWidget {
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: tempChatThreads.length,
+                itemCount: _chatThreads.length,
                 separatorBuilder: (_, __) =>
                     const Divider(height: 1, color: Color(0xFFEEEEEE)),
                 itemBuilder: (context, index) {
-                  final thread = tempChatThreads[index];
-                  return _buildChatRow(context, thread);
+                  final thread = _chatThreads[index];
+                  // Wrap each item with Dismissible for swipe-to-delete
+                  return Dismissible(
+                    key: Key(thread.contactName),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    onDismissed: (direction) {
+                      _deleteChat(index);
+                    },
+                    child: _buildChatRow(context, thread, index),
+                  );
                 },
               ),
             ),
@@ -49,14 +123,20 @@ class ChatsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildChatRow(BuildContext context, ChatThread thread) {
+  Widget _buildChatRow(BuildContext context, ChatThread thread, int index) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => InnerChatPage(chatThread: thread),
-        ),
-      ),
+      onTap: () {
+        // Mark chat as read before navigating
+        _markChatAsRead(index);
+        
+        // Navigate to chat
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => InnerChatPage(chatThread: _chatThreads[index]),
+          ),
+        );
+      },
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),

@@ -13,26 +13,65 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _controller = TextEditingController();
   List<String> _recentSearches = List.from(tempRecentSearches);
-  List<Store> _filteredStores = [];
+  List<String> _autocompleteSuggestions = []; // Changed from _filteredStores
   bool _isTyping = false;
+
+  // Popular search suggestions (replace with Firebase data later)
+  final List<String> _popularSuggestions = [
+    'Handmade jewelry',
+    'Local art',
+    'Wood crafts',
+    'Pottery',
+    'Textile art',
+    'Ceramics',
+    'Paintings',
+    'Sculptures',
+  ];
 
   void _onSearchChanged(String query) {
     setState(() {
       _isTyping = query.isNotEmpty;
       if (query.isNotEmpty) {
-        _filteredStores = tempStores
-            .where((s) =>
-                s.name.toLowerCase().contains(query.toLowerCase()) ||
-                s.description.toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        // Generate autocomplete suggestions based on store names and popular searches
+        _autocompleteSuggestions = _getSuggestions(query);
       } else {
-        _filteredStores = [];
+        _autocompleteSuggestions = [];
       }
     });
   }
 
+  List<String> _getSuggestions(String query) {
+    final lowerQuery = query.toLowerCase();
+    Set<String> suggestions = {};
+
+    // Add matching store names
+    for (var store in tempStores) {
+      if (store.name.toLowerCase().contains(lowerQuery)) {
+        suggestions.add(store.name);
+      }
+    }
+
+    // Add matching popular searches
+    for (var suggestion in _popularSuggestions) {
+      if (suggestion.toLowerCase().contains(lowerQuery)) {
+        suggestions.add(suggestion);
+      }
+    }
+
+    // Add recent searches that match
+    for (var recent in _recentSearches) {
+      if (recent.toLowerCase().contains(lowerQuery)) {
+        suggestions.add(recent);
+      }
+    }
+
+    // Limit to 10 suggestions
+    return suggestions.take(10).toList();
+  }
+
   void _submitSearch(String query) {
     if (query.trim().isEmpty) return;
+    
     // Add to recent searches
     setState(() {
       _recentSearches.remove(query.trim());
@@ -41,6 +80,7 @@ class _SearchPageState extends State<SearchPage> {
         _recentSearches = _recentSearches.sublist(0, 10);
       }
     });
+    
     // Update global temp list
     tempRecentSearches
       ..clear()
@@ -52,6 +92,14 @@ class _SearchPageState extends State<SearchPage> {
         builder: (_) => SearchResultPage(query: query.trim()),
       ),
     );
+  }
+
+  void _onSuggestionTapped(String suggestion) {
+    _controller.text = suggestion;
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: suggestion.length),
+    );
+    _onSearchChanged(suggestion);
   }
 
   void _onChipTapped(String text) {
@@ -138,9 +186,11 @@ class _SearchPageState extends State<SearchPage> {
 
             const SizedBox(height: 24),
 
-            // ── Body: recent searches or live results ──
+            // ── Body: recent searches or autocomplete suggestions ──
             Expanded(
-              child: _isTyping ? _buildLiveResults() : _buildRecentSearches(),
+              child: _isTyping 
+                  ? _buildAutocompleteSuggestions() 
+                  : _buildRecentSearches(),
             ),
           ],
         ),
@@ -150,7 +200,8 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildRecentSearches() {
     if (_recentSearches.isEmpty) {
-      return const SizedBox.shrink();
+      // Show popular suggestions when no recent searches
+      return _buildPopularSuggestions();
     }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -217,11 +268,57 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildLiveResults() {
-    if (_filteredStores.isEmpty) {
+  Widget _buildPopularSuggestions() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Popular searches',
+            style: TextStyle(
+              fontFamily: 'SF Pro Display',
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _popularSuggestions.map((text) {
+              return GestureDetector(
+                onTap: () => _onChipTapped(text),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFD0D0D0)),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      fontFamily: 'SF Pro Display',
+                      fontSize: 14,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAutocompleteSuggestions() {
+    if (_autocompleteSuggestions.isEmpty) {
       return const Center(
         child: Text(
-          'No results found',
+          'No suggestions found',
           style: TextStyle(
             fontFamily: 'SF Pro Display',
             fontSize: 16,
@@ -232,94 +329,42 @@ class _SearchPageState extends State<SearchPage> {
     }
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      itemCount: _filteredStores.length,
+      itemCount: _autocompleteSuggestions.length,
       separatorBuilder: (_, __) =>
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
       itemBuilder: (context, index) {
-        final store = _filteredStores[index];
-        return _buildStoreRow(store);
+        final suggestion = _autocompleteSuggestions[index];
+        return _buildSuggestionRow(suggestion);
       },
     );
   }
 
-  Widget _buildStoreRow(Store store) {
+  Widget _buildSuggestionRow(String suggestion) {
     return GestureDetector(
-      onTap: () => _submitSearch(store.name),
+      onTap: () => _onSuggestionTapped(suggestion),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            // Store image
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                store.imagePath,
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD9D9D9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
+            const Icon(
+              Icons.search,
+              color: Color(0xFF9F9F9F),
+              size: 20,
             ),
-            const SizedBox(width: 16),
-            // Store info
+            const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    store.name,
-                    style: const TextStyle(
-                      fontFamily: 'SF Pro Display',
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    store.description,
-                    style: const TextStyle(
-                      fontFamily: 'SF Pro Display',
-                      fontSize: 12,
-                      color: Color(0xFF9F9F9F),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  _buildStars(store.rating),
-                ],
+              child: Text(
+                suggestion,
+                style: const TextStyle(
+                  fontFamily: 'SF Pro Display',
+                  fontSize: 16,
+                  color: Colors.black,
+                ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildStars(double rating) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (i) {
-        final full = i < rating.floor();
-        final half = !full && (rating - i) >= 0.5 && (rating - i) < 1.0;
-        return Icon(
-          full
-              ? Icons.star
-              : half
-                  ? Icons.star_half
-                  : Icons.star_border,
-          size: 13,
-          color: Colors.amber,
-        );
-      }),
     );
   }
 }
