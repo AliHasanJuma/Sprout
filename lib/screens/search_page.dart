@@ -1,7 +1,26 @@
-// TODO: Replace with Firebase
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/temp_data.dart';
-import 'search_result_page.dart';
+import 'store_page.dart';
+
+/// Unified search result that can be a store or a product.
+class _SearchResult {
+  final String type; // 'Store' or 'Product'
+  final String name;
+  final String subtitle;
+  final double rating;
+  final String imagePath;
+  final Store store; // the store to navigate to
+
+  const _SearchResult({
+    required this.type,
+    required this.name,
+    required this.subtitle,
+    required this.rating,
+    required this.imagePath,
+    required this.store,
+  });
+}
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -13,52 +32,67 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _controller = TextEditingController();
   List<String> _recentSearches = List.from(tempRecentSearches);
-  List<Store> _filteredStores = [];
+  List<_SearchResult> _results = [];
   bool _isTyping = false;
+  Timer? _debounce;
 
   void _onSearchChanged(String query) {
-    setState(() {
-      _isTyping = query.isNotEmpty;
-      if (query.isNotEmpty) {
-        _filteredStores = tempStores
-            .where((s) =>
-                s.name.toLowerCase().contains(query.toLowerCase()) ||
-                s.description.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      } else {
-        _filteredStores = [];
-      }
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _performSearch(query);
     });
   }
 
-  void _submitSearch(String query) {
-    if (query.trim().isEmpty) return;
-    // Add to recent searches
+  void _performSearch(String query) {
     setState(() {
-      _recentSearches.remove(query.trim());
-      _recentSearches.insert(0, query.trim());
-      if (_recentSearches.length > 10) {
-        _recentSearches = _recentSearches.sublist(0, 10);
+      _isTyping = query.isNotEmpty;
+      if (query.isEmpty) {
+        _results = [];
+        return;
       }
-    });
-    // Update global temp list
-    tempRecentSearches
-      ..clear()
-      ..addAll(_recentSearches);
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SearchResultPage(query: query.trim()),
-      ),
-    );
+      final q = query.toLowerCase();
+      final results = <_SearchResult>[];
+
+      for (final store in tempStores) {
+        // Match store name/description
+        if (store.name.toLowerCase().contains(q) ||
+            store.description.toLowerCase().contains(q)) {
+          results.add(_SearchResult(
+            type: 'Store',
+            name: store.name,
+            subtitle: store.description,
+            rating: store.rating,
+            imagePath: store.imagePath,
+            store: store,
+          ));
+        }
+
+        // Match products within this store
+        for (final product in store.products) {
+          if (product.name.toLowerCase().contains(q) ||
+              product.description.toLowerCase().contains(q)) {
+            results.add(_SearchResult(
+              type: 'Product',
+              name: product.name,
+              subtitle: '${store.name} · ${product.price} BD',
+              rating: store.rating,
+              imagePath: product.imagePath,
+              store: store,
+            ));
+          }
+        }
+      }
+
+      _results = results;
+    });
   }
 
   void _onChipTapped(String text) {
     _controller.text = text;
     _controller.selection =
         TextSelection.fromPosition(TextPosition(offset: text.length));
-    _onSearchChanged(text);
+    _performSearch(text);
   }
 
   void _clearAllRecent() {
@@ -68,8 +102,30 @@ class _SearchPageState extends State<SearchPage> {
     tempRecentSearches.clear();
   }
 
+  void _navigateToStore(Store store, String query) {
+    // Save to recent searches
+    if (query.trim().isNotEmpty) {
+      setState(() {
+        _recentSearches.remove(query.trim());
+        _recentSearches.insert(0, query.trim());
+        if (_recentSearches.length > 10) {
+          _recentSearches = _recentSearches.sublist(0, 10);
+        }
+      });
+      tempRecentSearches
+        ..clear()
+        ..addAll(_recentSearches);
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => StorePage(store: store)),
+    );
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -112,7 +168,6 @@ class _SearchPageState extends State<SearchPage> {
                         controller: _controller,
                         autofocus: true,
                         onChanged: _onSearchChanged,
-                        onSubmitted: _submitSearch,
                         textInputAction: TextInputAction.search,
                         decoration: const InputDecoration(
                           hintText: 'Search for anything',
@@ -157,7 +212,6 @@ class _SearchPageState extends State<SearchPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -178,7 +232,6 @@ class _SearchPageState extends State<SearchPage> {
             ],
           ),
           const SizedBox(height: 8),
-          // Chips
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -218,7 +271,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildLiveResults() {
-    if (_filteredStores.isEmpty) {
+    if (_results.isEmpty) {
       return const Center(
         child: Text(
           'No results found',
@@ -232,28 +285,28 @@ class _SearchPageState extends State<SearchPage> {
     }
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      itemCount: _filteredStores.length,
+      itemCount: _results.length,
       separatorBuilder: (_, __) =>
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
       itemBuilder: (context, index) {
-        final store = _filteredStores[index];
-        return _buildStoreRow(store);
+        final result = _results[index];
+        return _buildResultRow(result);
       },
     );
   }
 
-  Widget _buildStoreRow(Store store) {
+  Widget _buildResultRow(_SearchResult result) {
     return GestureDetector(
-      onTap: () => _submitSearch(store.name),
+      onTap: () => _navigateToStore(result.store, _controller.text.trim()),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            // Store image
+            // Image
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
-                store.imagePath,
+                result.imagePath,
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
@@ -268,23 +321,49 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
             const SizedBox(width: 16),
-            // Store info
+            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    store.name,
-                    style: const TextStyle(
-                      fontFamily: 'SF Pro Display',
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          result.name,
+                          style: const TextStyle(
+                            fontFamily: 'SF Pro Display',
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                      // Type badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: result.type == 'Store'
+                              ? const Color(0xFFCDEB45)
+                              : const Color(0xFFE8E8E8),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          result.type,
+                          style: const TextStyle(
+                            fontFamily: 'SF Pro Display',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    store.description,
+                    result.subtitle,
                     style: const TextStyle(
                       fontFamily: 'SF Pro Display',
                       fontSize: 12,
@@ -294,7 +373,7 @@ class _SearchPageState extends State<SearchPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
-                  _buildStars(store.rating),
+                  _buildStars(result.rating),
                 ],
               ),
             ),

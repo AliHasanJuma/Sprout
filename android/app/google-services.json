@@ -12,7 +12,12 @@
           "package_name": "com.example.my_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1004085423869-4k0jramao2dgkdsbdrdilc08nn2e0k4p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBbImZmzwVRXEZLvIi7bJxCF50uukgVTMc"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1004085423869-4k0jramao2dgkdsbdrdilc08nn2e0k4p.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1004085423869-67bsd49vej2vbv1ornm5t5gstbkmc46b.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mycompany.sprout"
+              }
+            }
+          ]
         }
       }
     },
@@ -31,7 +48,20 @@
           "package_name": "com.mycompany.sprout"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1004085423869-jjjophgavjlel6iiorcnsj4vfr7s9ur9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mycompany.sprout",
+            "certificate_hash": "9bbb3186b2189ef16d8f272bdab59362c395cbb4"
+          }
+        },
+        {
+          "client_id": "1004085423869-4k0jramao2dgkdsbdrdilc08nn2e0k4p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBbImZmzwVRXEZLvIi7bJxCF50uukgVTMc"
@@ -39,7 +69,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1004085423869-4k0jramao2dgkdsbdrdilc08nn2e0k4p.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1004085423869-67bsd49vej2vbv1ornm5t5gstbkmc46b.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mycompany.sprout"
+              }
+            }
+          ]
         }
       }
     }

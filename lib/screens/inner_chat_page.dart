@@ -1,13 +1,14 @@
-// TODO: Replace with Firebase
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../data/temp_data.dart';
 import 'ai_summarise_page.dart';
+import 'store_page.dart';
 
 class InnerChatPage extends StatefulWidget {
   final ChatThread chatThread;
+  final String? initialMessage;
 
-  const InnerChatPage({super.key, required this.chatThread});
+  const InnerChatPage({super.key, required this.chatThread, this.initialMessage});
 
   @override
   State<InnerChatPage> createState() => _InnerChatPageState();
@@ -22,6 +23,20 @@ class _InnerChatPageState extends State<InnerChatPage> {
   void initState() {
     super.initState();
     _messages = List.from(widget.chatThread.messages);
+
+    // If an initial message was passed (e.g. from order), send it immediately
+    if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
+      _messages.add(ChatMessage(
+        text: widget.initialMessage!,
+        isSentByMe: true,
+        timeAgo: 'now',
+      ));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      });
+    }
   }
 
   @override
@@ -44,7 +59,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
     });
     _msgController.clear();
 
-    // Auto-scroll to bottom
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -56,6 +70,149 @@ class _InnerChatPageState extends State<InnerChatPage> {
     });
   }
 
+  void _navigateToStore() {
+    final store = tempStores.firstWhere(
+      (s) => s.id == widget.chatThread.storeId,
+      orElse: () => tempStores.first,
+    );
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => StorePage(store: store)),
+    );
+  }
+
+  void _showReportSheet() {
+    String? selectedReason;
+    final otherCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                  24, 12, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag handle
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDEDEDE),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Report this chat',
+                    style: TextStyle(
+                      fontFamily: 'SF Pro Display',
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Reason options
+                  ...['Spam', 'Harassment', 'Inappropriate content', 'Fraud', 'Other']
+                      .map((reason) => RadioListTile<String>(
+                            title: Text(
+                              reason,
+                              style: const TextStyle(
+                                fontFamily: 'SF Pro Display',
+                                fontSize: 15,
+                              ),
+                            ),
+                            value: reason,
+                            groupValue: selectedReason,
+                            activeColor: const Color(0xFF003E3B),
+                            onChanged: (val) {
+                              setSheetState(() => selectedReason = val);
+                            },
+                          )),
+                  // Other text field
+                  if (selectedReason == 'Other') ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFDEDEDE)),
+                      ),
+                      child: TextField(
+                        controller: otherCtrl,
+                        maxLines: null,
+                        expands: true,
+                        decoration: const InputDecoration(
+                          hintText: 'Describe the issue...',
+                          hintStyle: TextStyle(color: Color(0xFFC3C3C3)),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(12),
+                        ),
+                        style: const TextStyle(
+                          fontFamily: 'SF Pro Display',
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  // Submit button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: selectedReason == null
+                          ? null
+                          : () {
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Report submitted. We\'ll review it shortly.'),
+                                ),
+                              );
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        disabledBackgroundColor: const Color(0xFFE0E0E0),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Submit Report',
+                        style: TextStyle(
+                          fontFamily: 'SF Pro Display',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: selectedReason == null
+                              ? const Color(0xFF9F9F9F)
+                              : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,11 +220,8 @@ class _InnerChatPageState extends State<InnerChatPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ──
             _buildTopBar(),
             const Divider(height: 1, color: Color(0xFFEEEEEE)),
-
-            // ── Messages ──
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -79,8 +233,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
                 },
               ),
             ),
-
-            // ── Input row ──
             _buildInputRow(),
           ],
         ),
@@ -113,14 +265,26 @@ class _InnerChatPageState extends State<InnerChatPage> {
             ),
           ),
           const SizedBox(width: 12),
-          Text(
-            widget.chatThread.contactName,
-            style: const TextStyle(
-              fontFamily: 'SF Pro Display',
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          // Tappable username → navigates to store page
+          Expanded(
+            child: GestureDetector(
+              onTap: _navigateToStore,
+              child: Text(
+                widget.chatThread.contactName,
+                style: const TextStyle(
+                  fontFamily: 'SF Pro Display',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
             ),
+          ),
+          // Report button
+          IconButton(
+            icon: const Icon(Icons.flag_outlined,
+                color: Color(0xFF003E3B), size: 22),
+            onPressed: _showReportSheet,
           ),
         ],
       ),
@@ -170,7 +334,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
           // AI sparkle button
           GestureDetector(
             onTap: () {
-              // Find the store for this chat
               final store = tempStores.firstWhere(
                 (s) => s.id == widget.chatThread.storeId,
                 orElse: () => tempStores.first,
@@ -202,10 +365,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
               ),
             ),
           ),
-
           const SizedBox(width: 10),
-
-          // Text field
           Expanded(
             child: Container(
               height: 46,
@@ -229,10 +389,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
               ),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // Send button
           GestureDetector(
             onTap: _sendMessage,
             child: const Icon(

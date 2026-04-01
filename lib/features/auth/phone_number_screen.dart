@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import '../../core/constants/app_colors.dart';
@@ -47,60 +49,91 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
     super.dispose();
   }
 
-  void _handleContinue() {
+  bool _isLoading = false;
+
+  Future<void> _handleContinue() async {
     // Get just the digits (remove any spaces)
     String phoneNumber = _phoneController.text.replaceAll(' ', '');
-    
-    print('First Name: ${widget.firstName}');
-    print('Last Name: ${widget.lastName}');
-    print('Email: ${widget.email}');
-    print('Gender: ${widget.gender}');
-    print('Phone: $phoneNumber');
-    
+
     if (phoneNumber.length != 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid 8-digit phone number')),
       );
       return;
     }
-    
+
+    setState(() => _isLoading = true);
+
     // Full number with country code for backend
     String fullNumber = '+973$phoneNumber';
-    print('Full number for API: $fullNumber');
-    
-    FirebaseAuth.instance.verifyPhoneNumber(
-  phoneNumber: fullNumber,
 
-  verificationCompleted: (PhoneAuthCredential credential) async {
-    await FirebaseAuth.instance.signInWithCredential(credential);
-  },
+    // On iOS Simulator in debug mode, disable app verification since
+    // APNs is unavailable and reCAPTCHA fallback requires REVERSED_CLIENT_ID.
+    // This prevents the native Swift assertion crash (EXC_BREAKPOINT).
+    // NOTE: You must also add a test phone number in Firebase Console:
+    //   Authentication → Phone → Phone numbers for testing
+    //   e.g. +973 3333 3333 with code 123456
+    if (kDebugMode && Platform.isIOS) {
+      FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
+    }
 
-  verificationFailed: (FirebaseAuthException e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.message ?? "Verification failed")),
-    );
-  },
+    // Capture context-dependent objects before the async gap
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
-  codeSent: (String verificationId, int? resendToken) {
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: fullNumber,
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => VerificationScreen(
-          firstName: widget.firstName,
-          lastName: widget.lastName,
-          email: widget.email,
-          gender: widget.gender,
-          phoneNumber: fullNumber,
-          verificationId: verificationId,
-        ),
-      ),
-    );
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          try {
+            await FirebaseAuth.instance.signInWithCredential(credential);
+          } catch (e) {
+            if (mounted) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Auto-verification failed: $e')),
+              );
+            }
+          }
+        },
 
-  },
+        verificationFailed: (FirebaseAuthException e) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            messenger.showSnackBar(
+              SnackBar(content: Text(e.message ?? "Verification failed")),
+            );
+          }
+        },
 
-  codeAutoRetrievalTimeout: (String verificationId) {},
-);
+        codeSent: (String verificationId, int? resendToken) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            nav.push(
+              MaterialPageRoute(
+                builder: (_) => VerificationScreen(
+                  firstName: widget.firstName,
+                  lastName: widget.lastName,
+                  email: widget.email,
+                  gender: widget.gender,
+                  phoneNumber: fullNumber,
+                  verificationId: verificationId,
+                ),
+              ),
+            );
+          }
+        },
+
+        codeAutoRetrievalTimeout: (String verificationId) {},
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        messenger.showSnackBar(
+          SnackBar(content: Text('Phone verification error: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -239,8 +272,8 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
             
             // Continue button
             CustomButton(
-              text: 'Continue',
-              onPressed: _handleContinue,
+              text: _isLoading ? 'Sending...' : 'Continue',
+              onPressed: _isLoading ? null : _handleContinue,
               backgroundColor: AppColors.primary,
               textColor: Colors.black,
             ),
