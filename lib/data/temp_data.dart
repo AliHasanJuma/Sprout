@@ -27,6 +27,12 @@ class Store {
 class Product {
   final String id, name, description, imagePath;
   final double price;
+  final List<String>? ingredients;
+  final List<String>? sizes;
+  final List<Map<String, dynamic>>? addons; // [{name: String, price: double}]
+  final String? allergens;
+  final String? nutritionalInfo;
+  final String? weight;
 
   const Product({
     required this.id,
@@ -34,6 +40,12 @@ class Product {
     required this.description,
     required this.imagePath,
     required this.price,
+    this.ingredients,
+    this.sizes,
+    this.addons,
+    this.allergens,
+    this.nutritionalInfo,
+    this.weight,
   });
 }
 
@@ -121,6 +133,15 @@ const List<Store> tempStores = [
         description: 'Rich dark chocolate layered cake with ganache frosting',
         imagePath: _storeImage,
         price: 2.7,
+        ingredients: ['Dark chocolate', 'Flour', 'Butter', 'Sugar', 'Eggs', 'Cocoa powder'],
+        sizes: ['Small', 'Medium', 'Large'],
+        addons: [
+          {'name': 'Extra frosting', 'price': 0.5},
+          {'name': 'Birthday candles', 'price': 0.3},
+          {'name': 'Custom message', 'price': 0.2},
+        ],
+        allergens: 'Contains gluten, dairy, eggs',
+        weight: '1.2 kg',
       ),
       Product(
         id: 'p1_2',
@@ -128,6 +149,10 @@ const List<Store> tempStores = [
         description: 'Crispy golden cookies drizzled with pure honey glaze',
         imagePath: _storeImage,
         price: 1.5,
+        ingredients: ['Flour', 'Honey', 'Butter', 'Sugar', 'Vanilla extract'],
+        sizes: ['6 pcs', '12 pcs'],
+        allergens: 'Contains gluten, dairy',
+        weight: '250g',
       ),
       Product(
         id: 'p1_3',
@@ -135,6 +160,9 @@ const List<Store> tempStores = [
         description: 'Freshly baked artisan bread infused with wild thyme',
         imagePath: _storeImage,
         price: 3.0,
+        ingredients: ['Flour', 'Wild thyme', 'Olive oil', 'Yeast', 'Salt'],
+        allergens: 'Contains gluten',
+        weight: '500g',
       ),
     ],
   ),
@@ -154,6 +182,13 @@ const List<Store> tempStores = [
         description: 'Elegant rose-scented eau de parfum for everyday wear',
         imagePath: _storeImage,
         price: 8.5,
+        ingredients: ['Rose extract', 'Alcohol', 'Water', 'Fragrance oils'],
+        sizes: ['30ml', '50ml', '100ml'],
+        addons: [
+          {'name': 'Gift wrapping', 'price': 1.0},
+          {'name': 'Sample set', 'price': 0.5},
+        ],
+        weight: '50ml',
       ),
       Product(
         id: 'p2_2',
@@ -161,6 +196,9 @@ const List<Store> tempStores = [
         description: 'Soy wax candle with a warm and rich vanilla aroma',
         imagePath: _storeImage,
         price: 4.0,
+        ingredients: ['Soy wax', 'Vanilla essential oil', 'Cotton wick'],
+        sizes: ['Small', 'Large'],
+        weight: '200g',
       ),
       Product(
         id: 'p2_3',
@@ -168,6 +206,8 @@ const List<Store> tempStores = [
         description: 'Luxurious oud-infused room spray for a royal ambiance',
         imagePath: _storeImage,
         price: 6.0,
+        ingredients: ['Oud extract', 'Water', 'Alcohol', 'Essential oils'],
+        weight: '150ml',
       ),
     ],
   ),

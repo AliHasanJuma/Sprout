@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/widgets/search_bar.dart';
 import '../../screens/profile_page.dart';
-import '../../screens/category_page.dart';
 import '../../screens/store_page.dart';
 import '../../screens/search_page.dart';
 import '../../data/temp_data.dart';
+import '../../providers/cart_provider.dart';
+import '../../pages/cart_page.dart';
+import '../../pages/categories/category_stores_page.dart';
+import '../../pages/categories/special_categories/new_stores_page.dart';
+import '../../pages/categories/special_categories/featured_stores_page.dart';
+import '../../pages/categories/special_categories/top_rated_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,14 +20,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Banner page controller for the scrollable carousel
   late final PageController _pageController;
   int _bannerPage = 0;
+  final CartProvider _cart = CartProvider();
 
-  // Firebase current user
   User? get _user => FirebaseAuth.instance.currentUser;
 
-  // Extract first name from display name; fallback to 'there'
   String get _firstName {
     if (_user?.displayName != null) {
       return _user!.displayName!.split(' ').first;
@@ -34,25 +37,31 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _cart.addListener(_onCartChanged);
   }
 
   @override
   void dispose() {
+    _cart.removeListener(_onCartChanged);
     _pageController.dispose();
     super.dispose();
   }
 
-  // ── Category data ──────────────────────────────────────────────────────────
+  void _onCartChanged() {
+    if (mounted) setState(() {});
+  }
+
+  // ── Category data ──
   static const List<_Category> _categories = [
-    _Category('Sweet &\nBaking','assets/images/category/Baking.png'),
-    _Category('Gifts','assets/images/category/gift.png'),
-    _Category('Perfumes','assets/images/category/perfume.png'),
-    _Category('Home\nCooking','assets/images/category/home-cooking.png'),
-    _Category('Crafts &\nHome Decor','assets/images/category/Crafts.png'),
-    _Category('Fashion','assets/images/category/fastion.png'),
+    _Category('Sweet &\nBaking', 'assets/images/category/Baking.png'),
+    _Category('Gifts', 'assets/images/category/gift.png'),
+    _Category('Perfumes', 'assets/images/category/perfume.png'),
+    _Category('Home\nCooking', 'assets/images/category/home-cooking.png'),
+    _Category('Crafts &\nHome Decor', 'assets/images/category/Crafts.png'),
+    _Category('Fashion', 'assets/images/category/fastion.png'),
   ];
 
-  // ── Near-me store data ─────────────────────────────────────────────────────
+  // ── Near-me store data ──
   static const List<_Store> _stores = [
     _Store(
       name: 'Honey & Thyme',
@@ -76,6 +85,13 @@ class _HomePageState extends State<HomePage> {
     ),
   ];
 
+  // ── Banner destinations (special categories) ──
+  static final List<Widget> _bannerPages = [
+    const NewStoresPage(),
+    const FeaturedStoresPage(),
+    const TopRatedPage(),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,26 +100,13 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Lime-green SVG wave header with floating search bar
             _buildWaveHeader(),
-
-            // 24px accounts for the search bar half below the wave +
-            // 16px gap before the Categories title
             const SizedBox(height: 40),
-
-            // 2. Categories
             _buildCategories(),
-
             const SizedBox(height: 28),
-
-            // 4. Banner / carousel card
             _buildBanner(),
-
             const SizedBox(height: 28),
-
-            // 5. Near me
             _buildNearMe(),
-
             const SizedBox(height: 32),
           ],
         ),
@@ -111,17 +114,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ── 1. WAVE HEADER ─────────────────────────────────────────────────────────
-  // Uses bowdesign.svg as the lime-green wave background.
-  // The search bar is floated at the wave boundary via Positioned(bottom: -24),
-  // so it sits half on green and half on white.
   Widget _buildWaveHeader() {
     return SizedBox(
       height: 200,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // ── Bow-shaped background clipped with _BowClipper ───────────────
           ClipPath(
             clipper: _BowClipper(),
             child: Container(
@@ -130,22 +128,15 @@ class _HomePageState extends State<HomePage> {
               color: const Color(0xFFCDEB45),
             ),
           ),
-
-          // ── Header content: logo + welcome text + profile avatar ─────────
           SafeArea(
             bottom: false,
             child: Padding(
               padding: const EdgeInsets.only(
-                top: 8,
-                left: 24,
-                right: 24,
-                bottom: 56, // keeps content above the wave curve
-              ),
+                  top: 8, left: 24, right: 24, bottom: 56),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo + welcome message grouped on the left
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -167,34 +158,82 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ],
                   ),
-
-                  // Profile avatar — navigates to ProfilePage
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    ),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        image: DecorationImage(
-                          image: AssetImage('assets/icons/Profile_picture.png'),
-                          fit: BoxFit.cover,
+                  Row(
+                    children: [
+                      // Cart icon — only visible when cart has items
+                      if (_cart.totalItemCount > 0)
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const CartPage()),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Image.asset(
+                                  'assets/UI icons package/PNG/Black/Interface/Shopping_Cart_01.png',
+                                  width: 26,
+                                  height: 26,
+                                  color: const Color(0xFF003E3B),
+                                  colorBlendMode: BlendMode.srcIn,
+                                ),
+                                Positioned(
+                                  top: -6,
+                                  right: -8,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    child: Text(
+                                      '${_cart.totalItemCount}',
+                                      style: const TextStyle(
+                                        fontFamily: 'SF Pro Display',
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      // Profile avatar
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ProfilePage()),
+                        ),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            image: DecorationImage(
+                              image: AssetImage('assets/icons/Profile_picture.png'),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-
-          // ── Floating search bar — straddles the wave / white boundary ────
-          // Tapping navigates to SearchPage
           Positioned(
-            bottom: -8, // half of 48px height → centered on the boundary
+            bottom: -8,
             left: 24,
             right: 24,
             child: GestureDetector(
@@ -212,7 +251,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ── 3. CATEGORIES ──────────────────────────────────────────────────────────
   Widget _buildCategories() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,12 +267,9 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-
         const SizedBox(height: 16),
-
-        // Horizontal scrollable row — 65×65 image + label below
         SizedBox(
-          height: 104, // 65 image + 6 gap + ~28 label (2 lines × 10px + leading)
+          height: 104,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -252,14 +287,15 @@ class _HomePageState extends State<HomePage> {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const CategoryPage()),
+        MaterialPageRoute(
+          builder: (_) => CategoryStoresPage(categoryName: cat.label),
+        ),
       ),
       child: Container(
         width: 78,
         margin: const EdgeInsets.only(right: 14),
         child: Column(
           children: [
-            // 65×65 rounded image; grey fallback until assets are added
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
@@ -267,7 +303,7 @@ class _HomePageState extends State<HomePage> {
                 width: 65,
                 height: 65,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
+                errorBuilder: (_, __, ___) => Container(
                   width: 65,
                   height: 65,
                   decoration: BoxDecoration(
@@ -277,9 +313,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 6),
-
             Text(
               cat.label,
               style: const TextStyle(
@@ -297,13 +331,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ── 4. BANNER / CAROUSEL ───────────────────────────────────────────────────
   Widget _buildBanner() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         children: [
-          // Horizontally scrollable PageView carousel
           SizedBox(
             height: 170,
             child: PageView.builder(
@@ -313,7 +345,7 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, index) => GestureDetector(
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const CategoryPage()),
+                  MaterialPageRoute(builder: (_) => _bannerPages[index]),
                 ),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 5),
@@ -327,7 +359,7 @@ class _HomePageState extends State<HomePage> {
                       'assets/images/home page widgets/0001.png',
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      errorBuilder: (_, _, _) => Container(
+                      errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFFDDE8B0),
                       ),
                     ),
@@ -336,10 +368,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
           const SizedBox(height: 10),
-
-          // Pagination dots — animate as user swipes
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(3, (i) {
@@ -361,7 +390,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ── 5. NEAR ME ─────────────────────────────────────────────────────────────
   Widget _buildNearMe() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,11 +406,9 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-
         const SizedBox(height: 16),
-
         SizedBox(
-          height: 140, // 80 image + 8 gap + ~12 name + 4 gap + 12 stars
+          height: 140,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -397,7 +423,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildStoreCard(_Store store) {
-    // Find matching temp Store object for navigation
     final tempStore = tempStores.firstWhere(
       (s) => s.name == store.name,
       orElse: () => tempStores.first,
@@ -416,7 +441,6 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Store image placeholder (80×80, rounded 12, grey)
             Container(
               width: 80,
               height: 80,
@@ -425,10 +449,7 @@ class _HomePageState extends State<HomePage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-
             const SizedBox(height: 8),
-
-            // Store name — centered
             Text(
               store.name,
               style: const TextStyle(
@@ -441,10 +462,7 @@ class _HomePageState extends State<HomePage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-
             const SizedBox(height: 4),
-
-            // Star rating — centered
             Center(child: _buildStars(store.rating)),
           ],
         ),
@@ -452,7 +470,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Builds a row of 5 star icons supporting full and half stars.
   Widget _buildStars(double rating) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -473,27 +490,22 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ── Bow clipper derived from Figma SVG (viewBox 0 0 570.4 274) ───────────────
-// The bottom edge arches upward to a peak of 51.8 / 274 ≈ 18.9% of the height
-// at the horizontal centre. A quadratic bezier midpoint sits halfway between
-// the endpoints and the control point, so the control Y must be placed 2× the
-// desired peak depth above the baseline to produce the correct visual arc.
 class _BowClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     const double svgHeight = 274.0;
-    const double svgPeakDepth = 51.8; // distance the arc rises from the bottom
+    const double svgPeakDepth = 51.8;
     final double controlY =
         size.height - (size.height * (svgPeakDepth / svgHeight) * 2);
 
     final path = Path();
-    path.lineTo(0, size.height);          // bottom-left
+    path.lineTo(0, size.height);
     path.quadraticBezierTo(
-      size.width / 2, controlY,           // control point: centred, arched up
-      size.width, size.height,            // bottom-right
+      size.width / 2, controlY,
+      size.width, size.height,
     );
-    path.lineTo(size.width, 0);           // top-right
-    path.close();                         // back to top-left (0, 0)
+    path.lineTo(size.width, 0);
+    path.close();
     return path;
   }
 
@@ -501,14 +513,12 @@ class _BowClipper extends CustomClipper<Path> {
   bool shouldReclip(_BowClipper oldClipper) => false;
 }
 
-// ── Simple immutable category model ─────────────────────────────────────────
 class _Category {
   final String label;
   final String imagePath;
   const _Category(this.label, this.imagePath);
 }
 
-// ── Simple immutable store model ─────────────────────────────────────────────
 class _Store {
   final String name;
   final double rating;

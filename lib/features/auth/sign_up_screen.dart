@@ -4,8 +4,9 @@ import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'login_screen.dart';
-import 'phone_number_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'sign_up_email_screen.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -15,101 +16,122 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
-  String? _selectedGender; // Track selected gender
+  String? _selectedGender;
 
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+
+  double? _latitude;
+  double? _longitude;
+  bool _isLoadingLocation = false;
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
-  // Helper method to display snackbar errors
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
   }
 
-  // Input Validation Logic
-  bool _validateInputs(String firstName, String lastName, String email, String password, String? gender) {
-    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty || gender == null) {
+  bool _validateInputs(
+      String firstName, String lastName, String? gender) {
+    if (firstName.isEmpty || lastName.isEmpty || gender == null) {
       _showError('Please fill in all fields');
       return false;
     }
 
-    // Name Validation: Only letters and spaces, max 30 characters
     final nameRegExp = RegExp(r'^[a-zA-Z\s]+$');
     if (!nameRegExp.hasMatch(firstName) || firstName.length > 30) {
-      _showError('First name must contain only letters/spaces and be under 30 characters');
+      _showError(
+          'First name must contain only letters/spaces and be under 30 characters');
       return false;
     }
     if (!nameRegExp.hasMatch(lastName) || lastName.length > 30) {
-      _showError('Last name must contain only letters/spaces and be under 30 characters');
-      return false;
-    }
-
-    // Email Validation
-    final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegExp.hasMatch(email)) {
-      _showError('Please enter a valid email address');
-      return false;
-    }
-
-    // Password Validation: At least 8 chars, 1 letter, 1 number, 1 special character
-    final passwordRegExp = RegExp(r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#\$&*~`%^()_\-+={}[\]:;"<>,.?/\\]).{8,}$');
-    if (!passwordRegExp.hasMatch(password)) {
-      _showError('Password must be at least 8 characters, with letters, numbers, and a special character');
+      _showError(
+          'Last name must contain only letters/spaces and be under 30 characters');
       return false;
     }
 
     return true;
   }
 
-  Future<void> _handleSignUp() async {
+  void _handleContinue() {
     String firstName = _firstNameController.text.trim();
     String lastName = _lastNameController.text.trim();
-    String email = _emailController.text.trim();
-    String password = _passwordController.text;
     String? gender = _selectedGender;
 
-    // Run validations before proceeding
-    if (!_validateInputs(firstName, lastName, email, password, gender)) {
-      return; 
-    }
+    if (!_validateInputs(firstName, lastName, gender)) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SignUpEmailScreen(
+          firstName: firstName,
+          lastName: lastName,
+          gender: gender,
+          location: _locationController.text.trim().isNotEmpty
+              ? _locationController.text.trim()
+              : null,
+          latitude: _latitude,
+          longitude: _longitude,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _detectLocation() async {
+    setState(() => _isLoadingLocation = true);
 
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _showError('Location permission denied');
+          setState(() => _isLoadingLocation = false);
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _showError(
+            'Location permission permanently denied. Please enable it in Settings.');
+        setState(() => _isLoadingLocation = false);
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
       );
 
-      if (!mounted) return; // Good practice after async calls
+      _latitude = position.latitude;
+      _longitude = position.longitude;
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PhoneNumberScreen(
-            firstName: firstName,
-            lastName: lastName,
-            email: email,
-            gender: gender,
-          ),
-        ),
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
       );
-    } on FirebaseAuthException catch (e) {
-      // Handle Firebase specific errors
-      _showError(e.message ?? 'An error occurred during sign up.');
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        final city = place.locality ?? place.subAdministrativeArea ?? '';
+        final country = place.country ?? '';
+        final locationText =
+            [city, country].where((s) => s.isNotEmpty).join(', ');
+        _locationController.text = locationText;
+      }
     } catch (e) {
-      _showError(e.toString());
+      _showError('Could not detect location. Please enter manually.');
     }
+
+    if (mounted) setState(() => _isLoadingLocation = false);
   }
 
   @override
@@ -250,31 +272,72 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ],
               ),
 
-              const SizedBox(height: 48),
-
-              // Email
-              CustomTextField(
-                label: 'Email',
-                hintText: 'example@gmail.com',
-                keyboardType: TextInputType.emailAddress,
-                controller: _emailController,
-              ),
               const SizedBox(height: 16),
-              
-              // Password
-              CustomTextField(
-                label: 'Password',
-                hintText: 'Enter your password',
-                controller: _passwordController,
-                obscureText: true,
+
+              // Location
+              const Text(
+                'Location',
+                style: TextStyle(
+                  fontFamily: 'SF Pro Display',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w300,
+                  color: Color(0xFF003E3B),
+                ),
               ),
-              
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFDEDEDE)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _locationController,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter your city or tap to detect',
+                          hintStyle: TextStyle(color: Color(0xFFC3C3C3)),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(16),
+                        ),
+                        style: const TextStyle(
+                          fontFamily: 'SF Pro Display',
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _isLoadingLocation ? null : _detectLocation,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: _isLoadingLocation
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF003E3B),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.my_location,
+                                color: Color(0xFF003E3B),
+                                size: 24,
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 30),
 
               // Continue button
               CustomButton(
                 text: 'Continue',
-                onPressed: _handleSignUp,
+                onPressed: _handleContinue,
                 backgroundColor: AppColors.primary,
                 textColor: Colors.black,
               ),
@@ -312,7 +375,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20), // Bottom padding
+              const SizedBox(height: 20),
             ],
           ),
         ),

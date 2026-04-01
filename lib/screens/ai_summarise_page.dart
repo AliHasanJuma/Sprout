@@ -1,4 +1,3 @@
-// TODO: Replace with Firebase
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../data/temp_data.dart';
@@ -13,7 +12,6 @@ class AiSummarisePage extends StatefulWidget {
 }
 
 class _AiSummarisePageState extends State<AiSummarisePage> {
-  // Track quantities for first 2 products
   late List<int> _quantities;
   late List<bool> _visible;
 
@@ -60,7 +58,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
 
               const SizedBox(height: 16),
 
-              // ── Description text ──
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 48),
                 child: Text(
@@ -86,7 +83,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
                 ),
                 child: Column(
                   children: [
-                    // Product rows
                     for (int i = 0; i < products.length; i++) ...[
                       if (_visible[i]) ...[
                         if (i > 0 && _visible.take(i).any((v) => v))
@@ -101,10 +97,9 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
 
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Divider(height: 1, color: Color(0xFFDEDEDE)),
+                      child: Divider(height: 1, color: Color.fromARGB(255, 255, 255, 255)),
                     ),
 
-                    // ── Delivery details ──
                     _buildDeliveryRow(),
 
                     const Padding(
@@ -112,7 +107,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
                       child: Divider(height: 1, color: Color(0xFFDEDEDE)),
                     ),
 
-                    // ── Total price ──
                     _buildTotalRow(),
                   ],
                 ),
@@ -160,7 +154,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
 
               const SizedBox(height: 16),
 
-              // ── Go back button ──
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: const Row(
@@ -190,6 +183,9 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
   }
 
   Widget _buildProductRow(Product product, int index) {
+    final qty = _quantities[index];
+    final isTrash = qty <= 1;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -238,7 +234,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
         // Image + quantity controls (right)
         Column(
           children: [
-            // Product image placeholder
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
@@ -257,7 +252,7 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
               ),
             ),
             const SizedBox(height: 8),
-            // Quantity pill
+            // Quantity pill with smart icons
             Container(
               height: 32,
               decoration: BoxDecoration(
@@ -267,25 +262,29 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Trash / minus
+                  // Trash (qty == 1) or Minus (qty > 1)
                   GestureDetector(
                     onTap: () {
                       setState(() {
-                        if (_quantities[index] <= 1) {
+                        if (isTrash) {
+                          // Remove product from cart
                           _visible[index] = false;
                         } else {
                           _quantities[index]--;
                         }
                       });
                     },
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 10),
-                      child: Icon(Icons.delete_outline,
-                          color: Colors.white, size: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Icon(
+                        isTrash ? Icons.delete_outline : Icons.remove,
+                        color: isTrash ? const Color.fromARGB(255, 255, 255, 255) : Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                   Text(
-                    '${_quantities[index]}',
+                    '$qty',
                     style: const TextStyle(
                       fontFamily: 'SF Pro Display',
                       fontSize: 14,
@@ -302,8 +301,7 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
                     },
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 10),
-                      child:
-                          Icon(Icons.add, color: Colors.white, size: 16),
+                      child: Icon(Icons.add, color: Colors.white, size: 16),
                     ),
                   ),
                 ],
@@ -318,18 +316,13 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
   Widget _buildDeliveryRow() {
     return Row(
       children: [
-        // Delivery icon
-        SvgPicture.asset(
-          'assets/Essentials/Added/delivery.svg',
+        Image.asset(
+          'assets/Essentials/Added/delivery.png',
           width: 28,
           height: 28,
-          colorFilter: const ColorFilter.mode(
-            Color(0xFF003E3B),
-            BlendMode.srcIn,
-          ),
+          color: const Color(0xFF003E3B),
         ),
         const SizedBox(width: 12),
-        // Delivery text
         const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,7 +350,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
           ),
         ),
         const SizedBox(width: 8),
-        // Edit button
         Container(
           width: 40,
           height: 40,
