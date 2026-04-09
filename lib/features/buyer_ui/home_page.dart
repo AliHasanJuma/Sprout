@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'dart:math' as math; // ── ADDED FOR MATH ──
 import '../../shared/widgets/search_bar.dart';
 import '../../screens/profile_page.dart';
 import '../../screens/store_page.dart';
@@ -26,13 +28,6 @@ class _HomePageState extends State<HomePage> {
 
   User? get _user => FirebaseAuth.instance.currentUser;
 
-  String get _firstName {
-    if (_user?.displayName != null) {
-      return _user!.displayName!.split(' ').first;
-    }
-    return 'there';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -51,7 +46,7 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() {});
   }
 
-  // ── Category data ──
+  // Categories remain static as they are structural
   static const List<_Category> _categories = [
     _Category('Sweet &\nBaking', 'assets/images/category/Baking.png'),
     _Category('Gifts', 'assets/images/category/gift.png'),
@@ -61,36 +56,25 @@ class _HomePageState extends State<HomePage> {
     _Category('Fashion', 'assets/images/category/fastion.png'),
   ];
 
-  // ── Near-me store data ──
-  static const List<_Store> _stores = [
-    _Store(
-      name: 'Honey & Thyme',
-      rating: 3.0,
-      imagePath: 'assets/images/home page widgets/0001.png',
-    ),
-    _Store(
-      name: 'Sweet Bloom',
-      rating: 3.0,
-      imagePath: 'assets/images/home page widgets/0001.png',
-    ),
-    _Store(
-      name: 'Craft Corner',
-      rating: 3.5,
-      imagePath: 'assets/images/home page widgets/0001.png',
-    ),
-    _Store(
-      name: 'Aroma Studio',
-      rating: 3.5,
-      imagePath: 'assets/images/home page widgets/0001.png',
-    ),
-  ];
-
-  // ── Banner destinations (special categories) ──
   static final List<Widget> _bannerPages = [
     const NewStoresPage(),
     const FeaturedStoresPage(),
     const TopRatedPage(),
   ];
+
+  // ── NEW: HAVERSINE DISTANCE CALCULATOR ──
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371; // Radius of the earth in km
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLon = (lon2 - lon1) * math.pi / 180;
+    
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) * math.cos(lat2 * math.pi / 180) *
+        math.sin(dLon / 2) * math.sin(dLon / 2);
+        
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return R * c; 
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,8 +115,7 @@ class _HomePageState extends State<HomePage> {
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.only(
-                  top: 8, left: 24, right: 24, bottom: 56),
+              padding: const EdgeInsets.only(top: 8, left: 24, right: 24, bottom: 56),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,20 +130,30 @@ class _HomePageState extends State<HomePage> {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'Wellcome back, $_firstName',
-                        style: const TextStyle(
-                          fontFamily: 'SF Pro Display',
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+                      // DYNAMIC GREETING
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseFirestore.instance.collection('users').doc(_user?.uid).snapshots(),
+                        builder: (context, snapshot) {
+                          String name = "there";
+                          if (snapshot.hasData && snapshot.data!.exists) {
+                            var data = snapshot.data!.data() as Map<String, dynamic>;
+                            name = data['firstName'] ?? "there";
+                          }
+                          return Text(
+                            'Welcome back, $name',
+                            style: const TextStyle(
+                              fontFamily: 'SF Pro Display',
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
                   Row(
                     children: [
-                      // Cart icon — only visible when cart has items
                       if (_cart.totalItemCount > 0)
                         GestureDetector(
                           onTap: () => Navigator.push(
@@ -184,14 +177,8 @@ class _HomePageState extends State<HomePage> {
                                   right: -8,
                                   child: Container(
                                     padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 16,
-                                      minHeight: 16,
-                                    ),
+                                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                                     child: Text(
                                       '${_cart.totalItemCount}',
                                       style: const TextStyle(
@@ -208,7 +195,6 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ),
-                      // Profile avatar
                       GestureDetector(
                         onTap: () => Navigator.push(
                           context,
@@ -259,12 +245,7 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.symmetric(horizontal: 32),
           child: Text(
             'Categories',
-            style: TextStyle(
-              fontFamily: 'SF Pro Display',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+            style: TextStyle(fontFamily: 'SF Pro Display', fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 16),
@@ -274,9 +255,7 @@ class _HomePageState extends State<HomePage> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 32),
             itemCount: _categories.length,
-            itemBuilder: (context, index) {
-              return _buildCategoryItem(_categories[index]);
-            },
+            itemBuilder: (context, index) => _buildCategoryItem(_categories[index]),
           ),
         ),
       ],
@@ -287,9 +266,7 @@ class _HomePageState extends State<HomePage> {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => CategoryStoresPage(categoryName: cat.label),
-        ),
+        MaterialPageRoute(builder: (_) => CategoryStoresPage(categoryName: cat.label)),
       ),
       child: Container(
         width: 78,
@@ -300,31 +277,12 @@ class _HomePageState extends State<HomePage> {
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
                 cat.imagePath,
-                width: 65,
-                height: 65,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 65,
-                  height: 65,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEEEEE),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+                width: 65, height: 65, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(width: 65, height: 65, color: const Color(0xFFEEEEEE)),
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              cat.label,
-              style: const TextStyle(
-                fontFamily: 'SF Pro Display',
-                fontSize: 10,
-                color: Colors.black,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+            Text(cat.label, style: const TextStyle(fontSize: 10), textAlign: TextAlign.center, maxLines: 2),
           ],
         ),
       ),
@@ -357,11 +315,7 @@ class _HomePageState extends State<HomePage> {
                     borderRadius: BorderRadius.circular(16),
                     child: Image.asset(
                       'assets/images/home page widgets/0001.png',
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: const Color(0xFFDDE8B0),
-                      ),
+                      fit: BoxFit.cover, width: double.infinity,
                     ),
                   ),
                 ),
@@ -390,6 +344,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ── UPDATED: SMART DISTANCE SORTING ──
   Widget _buildNearMe() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,23 +353,72 @@ class _HomePageState extends State<HomePage> {
           padding: EdgeInsets.symmetric(horizontal: 32),
           child: Text(
             'Near me',
-            style: TextStyle(
-              fontFamily: 'SF Pro Display',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+            style: TextStyle(fontFamily: 'SF Pro Display', fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: 140,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            itemCount: _stores.length,
-            itemBuilder: (context, index) {
-              return _buildStoreCard(_stores[index]);
+          height: 150,
+          child: StreamBuilder<DocumentSnapshot>(
+            // First, we need the user's location
+            stream: FirebaseFirestore.instance.collection('users').doc(_user?.uid).snapshots(),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
+              }
+
+              // Default to center of Bahrain if location missing
+              double userLat = 26.0667; 
+              double userLon = 50.5577;
+
+              if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                userLat = (userData['latitude'] ?? userLat).toDouble();
+                userLon = (userData['longitude'] ?? userLon).toDouble();
+              }
+
+              // Now fetch all the stores
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('stores').snapshots(),
+                builder: (context, storeSnapshot) {
+                  if (storeSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
+                  }
+                  if (!storeSnapshot.hasData || storeSnapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text("No stores found", style: TextStyle(color: Color(0xFF9F9F9F))));
+                  }
+
+                  // Calculate distance for each store and pair it with its document data
+                  List<Map<String, dynamic>> sortedStores = [];
+                  
+                  for (var doc in storeSnapshot.data!.docs) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final storeLat = (data['latitude'] ?? 0.0).toDouble();
+                    final storeLon = (data['longitude'] ?? 0.0).toDouble();
+                    
+                    // Calculate real distance
+                    final calculatedDistance = _calculateDistance(userLat, userLon, storeLat, storeLon);
+                    
+                    // We pass the calculated distance back into the data map so we can read it later
+                    data['realDistanceKm'] = calculatedDistance;
+                    data['docId'] = doc.id;
+                    
+                    sortedStores.add(data);
+                  }
+
+                  // Sort the list based on the new realDistanceKm we just calculated (lowest first)
+                  sortedStores.sort((a, b) => (a['realDistanceKm'] as double).compareTo(b['realDistanceKm'] as double));
+
+                  return ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    itemCount: sortedStores.length,
+                    itemBuilder: (context, index) {
+                      return _buildStoreCardFromFirebase(sortedStores[index], sortedStores[index]['docId']);
+                    },
+                  );
+                },
+              );
             },
           ),
         ),
@@ -422,48 +426,50 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildStoreCard(_Store store) {
-    final tempStore = tempStores.firstWhere(
-      (s) => s.name == store.name,
-      orElse: () => tempStores.first,
+  Widget _buildStoreCardFromFirebase(Map<String, dynamic> data, String docId) {
+    // We grab the dynamically calculated distance!
+    final distance = data['realDistanceKm'] ?? 0.0;
+
+    final firebaseStore = Store(
+      id: docId, 
+      name: data['name'] ?? 'Shop',
+      description: data['description'] ?? '',
+      imagePath: data['imageUrl'] ?? 'https://via.placeholder.com/80',
+      logoPath: data['logoUrl'] ?? 'https://via.placeholder.com/80',
+      rating: (data['rating'] ?? 0.0).toDouble(),
+      category: data['category'] ?? 'General',
+      distanceKm: distance, // This is now completely accurate
+      products: [], 
     );
 
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => StorePage(store: tempStore),
-        ),
+        MaterialPageRoute(builder: (_) => StorePage(store: firebaseStore)),
       ),
       child: Container(
         width: 100,
         margin: const EdgeInsets.only(right: 16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: const Color(0xFFD9D9D9),
-                borderRadius: BorderRadius.circular(12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                data['imageUrl'] ?? 'https://via.placeholder.com/80',
+                width: 80, height: 80, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              store.name,
-              style: const TextStyle(
-                fontFamily: 'SF Pro Display',
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: Colors.black,
-              ),
+              data['name'] ?? 'Shop',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
-            Center(child: _buildStars(store.rating)),
+            _buildStars((data['rating'] ?? 0.0).toDouble()),
           ],
         ),
       ),
@@ -477,13 +483,8 @@ class _HomePageState extends State<HomePage> {
         final full = i < rating.floor();
         final half = !full && (rating - i) >= 0.5 && (rating - i) < 1.0;
         return Icon(
-          full
-              ? Icons.star
-              : half
-                  ? Icons.star_half
-                  : Icons.star_border,
-          size: 12,
-          color: Colors.amber,
+          full ? Icons.star : half ? Icons.star_half : Icons.star_border,
+          size: 12, color: Colors.amber,
         );
       }),
     );
@@ -495,20 +496,14 @@ class _BowClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     const double svgHeight = 274.0;
     const double svgPeakDepth = 51.8;
-    final double controlY =
-        size.height - (size.height * (svgPeakDepth / svgHeight) * 2);
-
+    final double controlY = size.height - (size.height * (svgPeakDepth / svgHeight) * 2);
     final path = Path();
     path.lineTo(0, size.height);
-    path.quadraticBezierTo(
-      size.width / 2, controlY,
-      size.width, size.height,
-    );
+    path.quadraticBezierTo(size.width / 2, controlY, size.width, size.height);
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
-
   @override
   bool shouldReclip(_BowClipper oldClipper) => false;
 }
@@ -517,15 +512,4 @@ class _Category {
   final String label;
   final String imagePath;
   const _Category(this.label, this.imagePath);
-}
-
-class _Store {
-  final String name;
-  final double rating;
-  final String imagePath;
-  const _Store({
-    required this.name,
-    required this.rating,
-    required this.imagePath,
-  });
 }

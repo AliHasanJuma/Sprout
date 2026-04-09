@@ -1,5 +1,6 @@
-// TODO: Replace with Firebase
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
+import 'package:firebase_auth/firebase_auth.dart'; // Added for User ID
 import '../data/temp_data.dart';
 import '../models/cart_model.dart';
 import '../providers/cart_provider.dart';
@@ -16,14 +17,12 @@ class StorePage extends StatefulWidget {
 }
 
 class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
-  bool _isFavourite = false;
   int _expandedIndex = -1; // -1 means none expanded
   final CartProvider _cart = CartProvider();
 
   @override
   void initState() {
     super.initState();
-    _isFavourite = tempFavourites.any((f) => f.storeId == widget.store.id);
     _cart.addListener(_onCartChanged);
   }
 
@@ -35,23 +34,6 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
 
   void _onCartChanged() {
     if (mounted) setState(() {});
-  }
-
-  void _toggleFavourite() {
-    setState(() {
-      if (_isFavourite) {
-        tempFavourites.removeWhere((f) => f.storeId == widget.store.id);
-        _isFavourite = false;
-      } else {
-        tempFavourites.add(FavouriteItem(
-          storeId: widget.store.id,
-          storeName: widget.store.name,
-          imagePath: widget.store.imagePath,
-          rating: widget.store.rating,
-        ));
-        _isFavourite = true;
-      }
-    });
   }
 
   String _getCategoryImage(String category) {
@@ -149,7 +131,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
+                              child: Image.network(
                                 product.imagePath,
                                 width: 80,
                                 height: 80,
@@ -523,6 +505,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     String instructions,
     double total,
   ) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return; // Must be logged in
+
     final buffer = StringBuffer();
     buffer.writeln('🛒 New Order:');
     buffer.writeln('Product: ${product.name}');
@@ -532,17 +517,17 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     if (instructions.isNotEmpty) buffer.writeln('Instructions: $instructions');
     buffer.writeln('Total: ${total.toStringAsFixed(1)} BD');
 
-    final thread = tempChatThreads.firstWhere(
-      (t) => t.storeId == widget.store.id,
-      orElse: () => tempChatThreads.first,
-    );
+    // ── CREATE THE SMART CHAT ID ──
+    final String chatId = '${uid}_${widget.store.id}';
 
-    // Navigate to chat with the order message pre-sent
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => InnerChatPage(
-          chatThread: thread,
+          chatId: chatId,
+          storeId: widget.store.id,
+          storeName: widget.store.name,
+          storeImage: widget.store.logoPath,
           initialMessage: buffer.toString().trim(),
         ),
       ),
@@ -590,15 +575,59 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                 const SizedBox(height: 16),
                 const Divider(height: 1, color: Color(0xFFEEEEEE)),
                 const SizedBox(height: 16),
-                ...List.generate(store.products.length, (i) {
-                  return _buildExpandableProductCard(store.products[i], store, i);
-                }),
+
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('products')
+                      .where('storeId', isEqualTo: store.id)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
+                    }
+
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: Text(
+                            'No products available yet.',
+                            style: TextStyle(color: Color(0xFF9F9F9F), fontFamily: 'SF Pro Display'),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final productDocs = snapshot.data!.docs;
+
+                    return Column(
+                      children: List.generate(productDocs.length, (index) {
+                        final data = productDocs[index].data() as Map<String, dynamic>;
+                        
+                        final product = Product(
+                          id: productDocs[index].id,
+                          name: data['name'] ?? 'Unknown Product',
+                          description: data['description'] ?? '',
+                          price: (data['price'] ?? 0.0).toDouble(),
+                          imagePath: data['imageUrl'] ?? 'https://via.placeholder.com/150',
+                          ingredients: data['ingredients'] != null ? List<String>.from(data['ingredients']) : null,
+                          allergens: data['allergens'],
+                          weight: data['weight'],
+                          sizes: data['sizes'] != null ? List<String>.from(data['sizes']) : null,
+                          addons: data['addons'] != null ? List<Map<String, dynamic>>.from(data['addons']) : null,
+                        );
+
+                        return _buildExpandableProductCard(product, store, index);
+                      }),
+                    );
+                  },
+                ),
+                
                 const SizedBox(height: 32),
               ],
             ),
           ),
 
-          // Floating cart bar
           if (hasCartItems)
             Positioned(
               left: 0,
@@ -678,6 +707,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   }
 
   Widget _buildHeader(Store store) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     return SizedBox(
       height: 260,
       child: Stack(
@@ -708,26 +739,55 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               ),
             ),
           ),
+          
+          // ── NEW: DYNAMIC HEART BUTTON ──
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             right: 16,
-            child: GestureDetector(
-              onTap: _toggleFavourite,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _isFavourite ? Icons.favorite : Icons.favorite_border,
-                  color: const Color(0xFF003E3B),
-                  size: 20,
-                ),
-              ),
+            child: StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+              builder: (context, snapshot) {
+                bool isFav = false;
+                
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  final data = snapshot.data!.data() as Map<String, dynamic>;
+                  final List<dynamic> favs = data['favouriteStoreIds'] ?? [];
+                  isFav = favs.contains(store.id);
+                }
+
+                return GestureDetector(
+                  onTap: () async {
+                    if (uid == null) return;
+                    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+                    
+                    if (isFav) {
+                      await userRef.update({
+                        'favouriteStoreIds': FieldValue.arrayRemove([store.id])
+                      });
+                    } else {
+                      await userRef.update({
+                        'favouriteStoreIds': FieldValue.arrayUnion([store.id])
+                      });
+                    }
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isFav ? Icons.favorite : Icons.favorite_border,
+                      color: const Color(0xFF003E3B),
+                      size: 20,
+                    ),
+                  ),
+                );
+              }
             ),
           ),
+          
           Positioned(
             bottom: 20,
             left: 0,
@@ -742,7 +802,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
+                  child: Image.network(
                     store.logoPath,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const SizedBox.shrink(),
@@ -877,7 +937,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
+                  child: Image.network(
                     product.imagePath,
                     width: 94,
                     height: 112,
@@ -949,20 +1009,26 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                         children: [
                           // Chat button with PNG icon
                           GestureDetector(
-                            onTap: () {
-                              final thread = tempChatThreads.firstWhere(
-                                (t) => t.storeId == store.id,
-                                orElse: () => tempChatThreads.first,
-                              );
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      InnerChatPage(chatThread: thread),
+                          onTap: () {
+                            final uid = FirebaseAuth.instance.currentUser?.uid;
+                            if (uid == null) return;
+                            
+                            // ── CREATE THE SMART CHAT ID ──
+                            final String chatId = '${uid}_${store.id}';
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => InnerChatPage(
+                                  chatId: chatId,
+                                  storeId: store.id,
+                                  storeName: store.name,
+                                  storeImage: store.logoPath,
                                 ),
-                              );
-                            },
-                            child: Container(
+                              ),
+                            );
+                          },
+                          child: Container(
                               height: 30,
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 14),

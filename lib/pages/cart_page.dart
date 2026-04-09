@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Added for Firebase UID
 import '../models/cart_model.dart';
 import '../providers/cart_provider.dart';
 import '../data/temp_data.dart';
@@ -51,6 +52,9 @@ class _CartPageState extends State<CartPage> {
   }
 
   void _sendCartToChat() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return; // Failsafe
+
     final byStore = _cart.itemsByStore;
     if (byStore.isEmpty) return;
 
@@ -58,11 +62,12 @@ class _CartPageState extends State<CartPage> {
     final firstStoreId = byStore.keys.first;
     final firstItems = byStore[firstStoreId]!;
     final message = _formatCartMessage(firstItems);
+    
+    // We grab the store name from the first item in the cart
+    final storeName = firstItems.first.storeName;
 
-    final thread = tempChatThreads.firstWhere(
-      (t) => t.storeId == firstStoreId,
-      orElse: () => tempChatThreads.first,
-    );
+    // ── CREATE THE SMART CHAT ID ──
+    final String chatId = '${uid}_$firstStoreId';
 
     _cart.clearCart();
 
@@ -70,7 +75,10 @@ class _CartPageState extends State<CartPage> {
       context,
       MaterialPageRoute(
         builder: (_) => InnerChatPage(
-          chatThread: thread,
+          chatId: chatId,
+          storeId: firstStoreId,
+          storeName: storeName,
+          storeImage: '', // Blank defaults to the initials avatar 
           initialMessage: message,
         ),
       ),
@@ -190,7 +198,8 @@ class _CartPageState extends State<CartPage> {
             if (item.productImageUrl != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
+                // Using NetworkImage to support Firebase links instead of AssetImage
+                child: Image.network(
                   item.productImageUrl!,
                   width: 70,
                   height: 70,

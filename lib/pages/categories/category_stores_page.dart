@@ -1,24 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
 import '../../data/temp_data.dart';
 import '../../screens/store_page.dart';
 
-/// Reusable category page that filters stores by category name.
+/// Reusable category page that filters stores by category name directly from Firebase.
 class CategoryStoresPage extends StatelessWidget {
   final String categoryName;
 
   const CategoryStoresPage({super.key, required this.categoryName});
 
-  List<Store> get _filteredStores {
-    final q = categoryName.toLowerCase().replaceAll('\n', ' ');
-    return tempStores.where((s) {
-      final cat = s.category.toLowerCase().replaceAll('\n', ' ');
-      return cat.contains(q) || q.contains(cat);
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final stores = _filteredStores;
+    // Clean up the category name for the query (e.g., "Sweet &\nBaking" -> "Sweet & Baking")
+    final cleanCategoryQuery = categoryName.replaceAll('\n', ' ');
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -30,7 +24,7 @@ class CategoryStoresPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          categoryName.replaceAll('\n', ' '),
+          cleanCategoryQuery,
           style: const TextStyle(
             fontFamily: 'SF Pro Display',
             fontSize: 20,
@@ -40,8 +34,28 @@ class CategoryStoresPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: stores.isEmpty
-          ? const Center(
+      // ── DYNAMIC FIRESTORE QUERY ──
+      body: FutureBuilder<QuerySnapshot>(
+        // Query the 'stores' collection where the 'category' field matches the tapped label
+        future: FirebaseFirestore.instance
+            .collection('stores')
+            .where('category', isEqualTo: cleanCategoryQuery)
+            .get(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
+          }
+
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text('Error loading stores', style: TextStyle(color: Color(0xFF9F9F9F))),
+            );
+          }
+
+          final storesDocs = snapshot.data?.docs ?? [];
+
+          if (storesDocs.isEmpty) {
+            return const Center(
               child: Text(
                 'No stores found in this category',
                 style: TextStyle(
@@ -50,17 +64,37 @@ class CategoryStoresPage extends StatelessWidget {
                   color: Color(0xFF9F9F9F),
                 ),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(24),
-              itemCount: stores.length,
-              itemBuilder: (context, index) =>
-                  _buildStoreCard(context, stores[index]),
-            ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(24),
+            itemCount: storesDocs.length,
+            itemBuilder: (context, index) {
+              final data = storesDocs[index].data() as Map<String, dynamic>;
+              final storeId = storesDocs[index].id;
+              return _buildStoreCardFromFirebase(context, data, storeId);
+            },
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildStoreCard(BuildContext context, Store store) {
+  Widget _buildStoreCardFromFirebase(BuildContext context, Map<String, dynamic> data, String docId) {
+    // Map the Firebase data to your Store model so the StorePage loads products correctly
+    final store = Store(
+      id: docId,
+      name: data['name'] ?? 'Shop',
+      description: data['description'] ?? '',
+      imagePath: data['imageUrl'] ?? 'https://via.placeholder.com/80',
+      logoPath: data['logoUrl'] ?? 'https://via.placeholder.com/80',
+      rating: (data['rating'] ?? 0.0).toDouble(),
+      category: data['category'] ?? 'General',
+      distanceKm: (data['distanceKm'] ?? 0.0).toDouble(),
+      products: [], // Products will dynamically load on the StorePage
+    );
+
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
@@ -85,7 +119,8 @@ class CategoryStoresPage extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
+              // USING NETWORK IMAGE FOR FIREBASE
+              child: Image.network(
                 store.imagePath,
                 width: 80,
                 height: 80,

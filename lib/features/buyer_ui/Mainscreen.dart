@@ -15,21 +15,13 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  // Keys to access page state for refresh
-  final GlobalKey<FavouritePageState> _favKey = GlobalKey<FavouritePageState>();
-
-  late final List<Widget> _pages;
-
-  @override
-  void initState() {
-    super.initState();
-    _pages = [
-      const HomePage(),
-      const ChatsPage(),
-      FavouritePage(key: _favKey),
-      const Center(child: Text('Shelves Page')), // To be built later
-    ];
-  }
+  // Since Firebase handles real-time updates, we don't need Keys anymore!
+  final List<Widget> _pages = const [
+    HomePage(),
+    ChatsPage(),
+    FavouritePage(),
+    Center(child: Text('Shelves Page')), // To be built later
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -41,10 +33,7 @@ class _MainScreenState extends State<MainScreen> {
           setState(() {
             _currentIndex = index;
           });
-          // Refresh favourites when switching to that tab
-          if (index == 2) {
-            _favKey.currentState?.refresh();
-          }
+          // The old manual refresh logic was deleted here
         },
       ),
     );

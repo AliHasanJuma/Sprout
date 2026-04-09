@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../data/temp_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
+import 'package:firebase_auth/firebase_auth.dart'; // Added Auth
 import 'inner_chat_page.dart';
 
 class ChatsPage extends StatefulWidget {
@@ -10,17 +11,37 @@ class ChatsPage extends StatefulWidget {
 }
 
 class _ChatsPageState extends State<ChatsPage> {
-  late List<ChatThread> _threads;
+  User? get _user => FirebaseAuth.instance.currentUser;
 
-  @override
-  void initState() {
-    super.initState();
-    _threads = List.from(tempChatThreads);
+  // Helper function to format the Firestore Timestamp into a readable time (e.g., "10:30 AM" or "2 days ago")
+  String _formatTime(Timestamp? timestamp) {
+    if (timestamp == null) return '';
+    final dateTime = timestamp.toDate();
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
   }
 
-  void _confirmDelete(int index) {
-    final thread = _threads[index];
+  // Helper to generate initials for the avatar fallback
+  String _getInitials(String name) {
+    if (name.isEmpty) return '??';
+    final parts = name.split(' ');
+    if (parts.length > 1) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name.substring(0, 1).toUpperCase();
+  }
 
+  void _confirmDelete(String chatId, String contactName) {
     showModalBottomSheet(
       context: context,
       isDismissible: true,
@@ -67,7 +88,7 @@ class _ChatsPageState extends State<ChatsPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Your conversation with ${thread.contactName} will be removed from your chats.',
+                  'Your conversation with $contactName will be removed from your chats.',
                   style: const TextStyle(
                     fontFamily: 'SF Pro Display',
                     fontSize: 14,
@@ -82,7 +103,7 @@ class _ChatsPageState extends State<ChatsPage> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      _deleteChat(index, thread);
+                      _deleteChat(chatId);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFEF4444),
@@ -133,26 +154,31 @@ class _ChatsPageState extends State<ChatsPage> {
     );
   }
 
-  void _deleteChat(int index, ChatThread thread) {
-    setState(() {
-      _threads.removeAt(index);
-    });
+  Future<void> _deleteChat(String chatId) async {
+    try {
+      // 1. Delete the main chat document
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).delete();
+      
+      // Note: In a production app, you would also want to delete all documents 
+      // inside the 'messages' sub-collection. For this prototype, deleting the parent 
+      // document hides it from the list effectively.
 
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Chat deleted'),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () {
-            setState(() {
-              _threads.insert(index, thread);
-            });
-          },
-        ),
-      ),
-    );
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat deleted'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete chat: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -176,29 +202,67 @@ class _ChatsPageState extends State<ChatsPage> {
               ),
             ),
             const Divider(height: 1, color: Color(0xFFEEEEEE)),
+            
+            // ── DYNAMIC FIRESTORE QUERY ──
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _threads.length,
-                separatorBuilder: (_, __) =>
-                    const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                itemBuilder: (context, index) {
-                  final thread = _threads[index];
-                  return Dismissible(
-                    key: ValueKey(thread.id),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      color: Colors.red,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 24),
-                      child: const Icon(Icons.delete,
-                          color: Colors.white, size: 28),
-                    ),
-                    confirmDismiss: (_) async {
-                      _confirmDelete(index);
-                      return false; // We handle deletion manually
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('chats')
+                    .where('buyerId', isEqualTo: _user?.uid) // Only show THIS user's chats
+                    .orderBy('lastMessageTime', descending: true) // Newest at the top
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'Error loading chats.\nPlease check database indexes.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontFamily: 'SF Pro Display', color: Colors.red),
+                      ),
+                    );
+                  }
+
+                  final chatDocs = snapshot.data?.docs ?? [];
+
+                  if (chatDocs.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No active chats.',
+                        style: TextStyle(fontFamily: 'SF Pro Display', color: Color(0xFF9F9F9F)),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: chatDocs.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                    itemBuilder: (context, index) {
+                      final data = chatDocs[index].data() as Map<String, dynamic>;
+                      final chatId = chatDocs[index].id;
+
+                      return Dismissible(
+                        key: ValueKey(chatId),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          color: Colors.red,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 24),
+                          child: const Icon(Icons.delete,
+                              color: Colors.white, size: 28),
+                        ),
+                        confirmDismiss: (_) async {
+                          _confirmDelete(chatId, data['storeName'] ?? 'Unknown');
+                          return false; // We handle deletion manually so it doesn't swipe away instantly
+                        },
+                        child: _buildChatRow(context, data, chatId),
+                      );
                     },
-                    child: _buildChatRow(context, thread),
                   );
                 },
               ),
@@ -209,12 +273,25 @@ class _ChatsPageState extends State<ChatsPage> {
     );
   }
 
-  Widget _buildChatRow(BuildContext context, ChatThread thread) {
+  Widget _buildChatRow(BuildContext context, Map<String, dynamic> data, String chatId) {
+    final storeName = data['storeName'] ?? 'Unknown Store';
+    final storeImage = data['storeImage'] ?? '';
+    final lastMessage = data['lastMessage'] ?? '';
+    final timeAgo = _formatTime(data['lastMessageTime'] as Timestamp?);
+    final unreadCount = data['unreadCount'] ?? 0;
+    final storeId = data['storeId'] ?? '';
+    final isOnline = data['isOnline'] ?? false; // Optional field in DB
+
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => InnerChatPage(chatThread: thread),
+          builder: (_) => InnerChatPage(
+            chatId: chatId,
+            storeId: storeId,
+            storeName: storeName,
+            storeImage: storeImage,
+          ),
         ),
       ),
       behavior: HitTestBehavior.opaque,
@@ -227,20 +304,24 @@ class _ChatsPageState extends State<ChatsPage> {
               height: 52,
               child: Stack(
                 children: [
+                  // Fallback to Initials if Image is empty/fails
                   CircleAvatar(
                     radius: 26,
                     backgroundColor: const Color(0xFFCDEB45),
-                    child: Text(
-                      thread.initials,
-                      style: const TextStyle(
-                        fontFamily: 'SF Pro Display',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF003E3B),
-                      ),
-                    ),
+                    backgroundImage: storeImage.isNotEmpty ? NetworkImage(storeImage) : null,
+                    child: storeImage.isEmpty
+                        ? Text(
+                            _getInitials(storeName),
+                            style: const TextStyle(
+                              fontFamily: 'SF Pro Display',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF003E3B),
+                            ),
+                          )
+                        : null,
                   ),
-                  if (thread.isOnline)
+                  if (isOnline)
                     Positioned(
                       bottom: 2,
                       right: 2,
@@ -263,7 +344,7 @@ class _ChatsPageState extends State<ChatsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    thread.contactName,
+                    storeName,
                     style: const TextStyle(
                       fontFamily: 'SF Pro Display',
                       fontSize: 17,
@@ -273,7 +354,7 @@ class _ChatsPageState extends State<ChatsPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    thread.lastMessage,
+                    lastMessage,
                     style: const TextStyle(
                       fontFamily: 'SF Pro Display',
                       fontSize: 14,
@@ -290,14 +371,14 @@ class _ChatsPageState extends State<ChatsPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  thread.timeAgo,
+                  timeAgo,
                   style: const TextStyle(
                     fontFamily: 'SF Pro Display',
                     fontSize: 12,
                     color: Color(0xFF9F9F9F),
                   ),
                 ),
-                if (thread.unreadCount > 0) ...[
+                if (unreadCount > 0) ...[
                   const SizedBox(height: 6),
                   Container(
                     width: 22,
@@ -308,7 +389,7 @@ class _ChatsPageState extends State<ChatsPage> {
                     ),
                     child: Center(
                       child: Text(
-                        '${thread.unreadCount}',
+                        '$unreadCount',
                         style: const TextStyle(
                           fontFamily: 'SF Pro Display',
                           fontSize: 11,

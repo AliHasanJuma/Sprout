@@ -91,6 +91,9 @@ class _SignUpEmailScreenState extends State<SignUpEmailScreen> {
             lastName: widget.lastName,
             email: email,
             gender: widget.gender,
+            location: widget.location,   // Added
+            latitude: widget.latitude,   // Added
+            longitude: widget.longitude, // Added
           ),
         ),
       );
