@@ -72,6 +72,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1004085423869',
     projectId: 'sprout-c5452',
     storageBucket: 'sprout-c5452.firebasestorage.app',
+    androidClientId: '1004085423869-jjjophgavjlel6iiorcnsj4vfr7s9ur9.apps.googleusercontent.com',
+    iosClientId: '1004085423869-ovhakd6ejothvt0r76nnde4505km0r3m.apps.googleusercontent.com',
     iosBundleId: 'com.example.myApp',
   );
 
@@ -81,6 +83,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1004085423869',
     projectId: 'sprout-c5452',
     storageBucket: 'sprout-c5452.firebasestorage.app',
+    androidClientId: '1004085423869-jjjophgavjlel6iiorcnsj4vfr7s9ur9.apps.googleusercontent.com',
+    iosClientId: '1004085423869-ovhakd6ejothvt0r76nnde4505km0r3m.apps.googleusercontent.com',
     iosBundleId: 'com.example.myApp',
   );
 
