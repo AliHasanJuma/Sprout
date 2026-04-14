@@ -329,7 +329,20 @@ class _InnerChatPageState extends State<InnerChatPage> {
           // Navigates to store page
           Expanded(
             child: GestureDetector(
-              onTap: () => _fetchStoreAndNavigate((store) => StorePage(store: store)),
+              onTap: () {
+                // Navigate directly to AI Summary page with correct parameters
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AiSummarisePage(
+                      chatId: widget.chatId,
+                      storeId: widget.storeId,
+                      storeName: widget.storeName,
+                      storeImage: widget.storeImage,
+                    ),
+                  ),
+                );
+              },
               child: Text(
                 widget.storeName,
                 style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
@@ -372,55 +385,67 @@ class _InnerChatPageState extends State<InnerChatPage> {
   }
 
   Widget _buildInputRow() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
-      ),
-      child: Row(
-        children: [
-          // AI sparkle button
-          GestureDetector(
-            // NOTE: We temporarily removed `chatId: widget.chatId` to prevent the compile error
-            onTap: () => _fetchStoreAndNavigate((store) => AiSummarisePage(store: store)),
-            child: Container(
-              width: 46, height: 46,
-              decoration: const BoxDecoration(color: Color(0xFF003E3B), shape: BoxShape.circle),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/Essentials/Added/star.svg',
-                  width: 24, height: 24,
-                  colorFilter: const ColorFilter.mode(Color(0xFFCDEB45), BlendMode.srcIn),
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
+    ),
+    child: Row(
+      children: [
+        // AI sparkle button - FIXED
+        GestureDetector(
+          onTap: () {
+            // Navigate directly to AI Summary page with correct parameters
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AiSummarisePage(
+                  chatId: widget.chatId,
+                  storeId: widget.storeId,
+                  storeName: widget.storeName,
+                  storeImage: widget.storeImage,
                 ),
+              ),
+            );
+          },
+          child: Container(
+            width: 46, height: 46,
+            decoration: const BoxDecoration(color: Color(0xFF003E3B), shape: BoxShape.circle),
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/Essentials/Added/star.svg',
+                width: 24, height: 24,
+                colorFilter: const ColorFilter.mode(Color(0xFFCDEB45), BlendMode.srcIn),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              height: 46,
-              decoration: BoxDecoration(color: const Color(0xFFF0F0F0), borderRadius: BorderRadius.circular(24)),
-              child: TextField(
-                controller: _msgController,
-                onSubmitted: (_) => _sendMessage(),
-                textInputAction: TextInputAction.send,
-                decoration: const InputDecoration(
-                  hintText: 'Type a message...',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 15),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            height: 46,
+            decoration: BoxDecoration(color: const Color(0xFFF0F0F0), borderRadius: BorderRadius.circular(24)),
+            child: TextField(
+              controller: _msgController,
+              onSubmitted: (_) => _sendMessage(),
+              textInputAction: TextInputAction.send,
+              decoration: const InputDecoration(
+                hintText: 'Type a message...',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
+              style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 15),
             ),
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => _sendMessage(),
-            child: const Icon(Icons.send, color: Color(0xFF003E3B), size: 24),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () => _sendMessage(),
+          child: const Icon(Icons.send, color: Color(0xFF003E3B), size: 24),
+        ),
+      ],
+    ),
+  );
+ }
 }
