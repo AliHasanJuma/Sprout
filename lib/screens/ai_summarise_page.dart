@@ -26,7 +26,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
   bool _isLoading = true;
   String? _error;
   
-  // AI extracted data
   List<Map<String, dynamic>> _extractedItems = [];
   double _totalPrice = 0;
   String _deliveryMethod = '';
@@ -34,11 +33,9 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
   String _notes = '';
   bool _hasOrder = false;
   
-  // Manual override controls
   final Map<int, int> _quantities = {};
   final Map<int, bool> _visible = {};
   
-  // Store products from Firestore
   List<QueryDocumentSnapshot> _storeProducts = [];
 
   @override
@@ -54,7 +51,6 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
     });
 
     try {
-      // Fetch store products from Firestore
       final productsSnapshot = await FirebaseFirestore.instance
           .collection('products')
           .where('storeId', isEqualTo: widget.storeId)
@@ -62,46 +58,29 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
       
       _storeProducts = productsSnapshot.docs;
       
-      // Convert products to format for AI
       final productsForAI = _storeProducts.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        
-        // Safe way to get values
         final nameValue = data['name'];
         final priceValue = data['price'];
+        final imageUrlValue = data['imageUrl'];
         
-        final String name;
-        if (nameValue == null) {
-          name = 'Unknown';
-        } else {
-          name = nameValue.toString();
-        }
-        
-        final double price;
-        if (priceValue == null) {
-          price = 0.0;
-        } else if (priceValue is int) {
-          price = priceValue.toDouble();
-        } else if (priceValue is double) {
-          price = priceValue;
-        } else {
-          price = 0.0;
-        }
+        final String name = nameValue != null ? nameValue.toString() : 'Unknown';
+        final double price = priceValue != null ? (priceValue as num).toDouble() : 0.0;
+        final String imageUrl = imageUrlValue != null ? imageUrlValue.toString() : '';
         
         return {
           'name': name,
           'price': price,
+          'imageUrl': imageUrl,
         };
       }).toList();
       
-      // After fetching products, add this debug
-print('=== STORE PRODUCTS ===');
-for (var product in productsForAI) {
-  print('Product: ${product['name']} - ${product['price']} BHD');
-}
-print('=====================');
+      print('=== STORE PRODUCTS ===');
+      for (var product in productsForAI) {
+        print('Product: ${product['name']} - ${product['price']} BHD');
+      }
+      print('=====================');
 
-      // Call groq API to extract order from chat
       final aiResult = await GroqOrderService.extractOrderFromChat(
         chatId: widget.chatId,
         storeName: widget.storeName,
@@ -116,14 +95,25 @@ print('=====================');
       if (aiResult['has_order'] == true) {
         _hasOrder = true;
         
-        // Process extracted items
         final items = aiResult['items'] as List<dynamic>? ?? [];
         for (var i = 0; i < items.length; i++) {
           final item = items[i];
+          final itemName = item['name'] as String? ?? 'Unknown';
+          
+          // Find matching product image
+          String productImage = '';
+          for (var product in productsForAI) {
+            if (product['name'] == itemName) {
+              productImage = product['imageUrl'] as String? ?? '';
+              break;
+            }
+          }
+          
           _extractedItems.add({
-            'name': item['name'] as String? ?? 'Unknown',
+            'name': itemName,
             'quantity': item['quantity'] as int? ?? 1,
             'price_per_unit': (item['price_per_unit'] as num? ?? 0).toDouble(),
+            'imageUrl': productImage,
           });
           _quantities[i] = item['quantity'] as int? ?? 1;
           _visible[i] = true;
@@ -157,7 +147,6 @@ print('=====================');
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) throw Exception('User not logged in');
 
-      // Prepare items list for storage
       final itemsList = [];
       for (int i = 0; i < _extractedItems.length; i++) {
         if (_visible[i] == true) {
@@ -169,7 +158,6 @@ print('=====================');
         }
       }
 
-      // Create order intent in Firestore
       await FirebaseFirestore.instance.collection('orderIntents').add({
         'chatId': widget.chatId,
         'buyerId': currentUser.uid,
@@ -185,7 +173,6 @@ print('=====================');
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Add a system message to the chat
       await FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatId)
@@ -301,7 +288,6 @@ print('=====================');
       child: Column(
         children: [
           const SizedBox(height: 40),
-
           SvgPicture.asset(
             'assets/Essentials/Added/star.svg',
             width: 60,
@@ -311,9 +297,7 @@ print('=====================');
               BlendMode.srcIn,
             ),
           ),
-
           const SizedBox(height: 16),
-
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 48),
             child: Text(
@@ -326,10 +310,7 @@ print('=====================');
               textAlign: TextAlign.center,
             ),
           ),
-
           const SizedBox(height: 32),
-
-          // Main order card - FIXED: Changed _visible.take to proper list check
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 24),
             padding: const EdgeInsets.all(20),
@@ -349,27 +330,20 @@ print('=====================');
                     _buildItemRow(_extractedItems[i], i),
                   ],
                 ],
-
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
                   child: Divider(height: 1, color: Color(0xFFDEDEDE)),
                 ),
-
                 _buildDeliveryRow(),
-
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
                   child: Divider(height: 1, color: Color(0xFFDEDEDE)),
                 ),
-
                 _buildTotalRow(),
               ],
             ),
           ),
-
           const SizedBox(height: 32),
-
-          // Send order button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 48),
             child: GestureDetector(
@@ -399,9 +373,7 @@ print('=====================');
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: const Row(
@@ -421,14 +393,12 @@ print('=====================');
               ],
             ),
           ),
-
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  // Helper method to check if there's any visible item before the current index
   bool _hasPreviousVisibleItem(int currentIndex) {
     for (int i = 0; i < currentIndex; i++) {
       if (_visible[i] == true) {
@@ -441,10 +411,34 @@ print('=====================');
   Widget _buildItemRow(Map<String, dynamic> item, int index) {
     final qty = _quantities[index] ?? 1;
     final isTrash = qty <= 1;
+    final productImage = item['imageUrl'] ?? '';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: productImage.isNotEmpty
+              ? Image.network(
+                  productImage,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 60,
+                    height: 60,
+                    color: const Color(0xFFD9D9D9),
+                    child: const Icon(Icons.image, color: Color(0xFF9F9F9F)),
+                  ),
+                )
+              : Container(
+                  width: 60,
+                  height: 60,
+                  color: const Color(0xFFD9D9D9),
+                  child: const Icon(Icons.image, color: Color(0xFF9F9F9F)),
+                ),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -453,36 +447,36 @@ print('=====================');
                 item['name'],
                 style: const TextStyle(
                   fontFamily: 'SF Pro Display',
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                _notes.isNotEmpty ? _notes : 'No additional notes',
+                'Qty: $qty × ${item['price_per_unit']} BD',
                 style: const TextStyle(
                   fontFamily: 'SF Pro Display',
                   fontSize: 12,
                   color: Color(0xFF9F9F9F),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                '${item['price_per_unit']} BD / each',
-                style: const TextStyle(
-                  fontFamily: 'SF Pro Display',
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF003E3B),
-                ),
-              ),
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            Text(
+              '${(item['price_per_unit'] * qty).toStringAsFixed(2)} BD',
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF003E3B),
+              ),
+            ),
             Container(
               height: 32,
               decoration: BoxDecoration(

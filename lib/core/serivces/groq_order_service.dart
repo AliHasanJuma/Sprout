@@ -63,11 +63,21 @@ class GroqOrderService {
           'messages': [
             {
               'role': 'system',
-              'content': 'Extract order details from conversation and pay attention while checking for discounts(important) and notes. Return ONLY valid JSON. No other text. Format: {"has_order": true/false, "items": [{"name": "product", "quantity": number, "price_per_unit": number}], "total_price": number, "delivery_method": "pickup/courier", "delivery_area": "area", "notes": "instructions"}'
+              'content': '''You are an order extraction assistant for "Sprout", a local marketplace app in Bahrain.
+
+          RULES:
+          1. Extract order details when the seller has agreed to provide the items.
+          2. Seller agreement includes: "yes", "okay", "alright", "deal", "confirmed", "fine", "go ahead", "I will give you", "I can do that", etc.
+          3. If the buyer asks for a discount and the seller offers a different discount, use the seller's offered discount (even if different from buyer's request).
+          4. If the seller hasn't responded yet or says "no", set has_order = false.
+          5. Extract each item mentioned by the buyer that the seller agrees to.
+          6. Calculate total_price based on quantities and agreed prices.
+
+          Return ONLY valid JSON. No other text. Format: {"has_order": true/false, "items": [{"name": "product", "quantity": number, "price_per_unit": number}], "total_price": number, "delivery_method": "pickup/courier", "delivery_area": "area", "notes": "instructions"}''',
             },
             {
               'role': 'user',
-              'content': 'STORE: $storeName\nPRODUCTS:\n$productsList\n\nCONVERSATION:\n$conversation\n\nExtract order details as JSON.'
+              'content': 'STORE: $storeName\nPRODUCTS:\n$productsList\n\nCONVERSATION:\n$conversation\n\nExtract order details as JSON. The seller said "Alright I will give you these items" - this means they agreed.',
             }
           ],
           'temperature': 0.2,
