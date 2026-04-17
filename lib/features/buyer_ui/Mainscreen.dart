@@ -4,6 +4,7 @@ import '../../shared/widgets/navbar.dart';
 import 'home_page.dart';
 import '../../screens/chats_page.dart';
 import '../../screens/favourite_page.dart';
+import '../../screens/shelves_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -20,7 +21,7 @@ class _MainScreenState extends State<MainScreen> {
     HomePage(),
     ChatsPage(),
     FavouritePage(),
-    Center(child: Text('Shelves Page')), // To be built later
+    ShelvesPage(),
   ];
 
   @override
