@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
+import 'choose_category_page.dart';
 
 class CreateShopPage extends StatefulWidget {
   const CreateShopPage({super.key});
@@ -52,12 +53,15 @@ class _CreateShopPageState extends State<CreateShopPage> {
     print('Shop Name: $shopName');
     print('Bio: $bio');
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Shop created successfully!')),
-    );
+    // ScaffoldMessenger.of(context).showSnackBar(
+    //   const SnackBar(content: Text('Shop created successfully!')),
+    // );
     
-    // Navigate back or to shop dashboard
-    Navigator.pop(context);
+    // Navigate to category selection
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChooseCategoryPage()),
+    );
   }
 
   @override
