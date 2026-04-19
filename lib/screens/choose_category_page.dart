@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/custom_button.dart';
+import 'customize_store_page.dart';
 
 class ChooseCategoryPage extends StatefulWidget {
   const ChooseCategoryPage({super.key});
@@ -36,8 +37,10 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
       SnackBar(content: Text('Category selected: $_selectedCategory')),
     );
     
-    // Navigate to next screen (e.g., add products or shop preview)
-    // Navigator.push(context, MaterialPageRoute(builder: (_) => NextScreen()));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CustomizeStorePage()),
+    );
   }
 
   @override
