@@ -32,6 +32,9 @@ Future<void> showDeleteStoreDialog(BuildContext context) async {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogCtx, false),
+          style: TextButton.styleFrom(
+            overlayColor: const Color(0xFFBDBDBD),
+          ),
           child: const Text(
             'Cancel',
             style: TextStyle(
@@ -44,6 +47,9 @@ Future<void> showDeleteStoreDialog(BuildContext context) async {
         ),
         TextButton(
           onPressed: () => Navigator.pop(dialogCtx, true),
+          style: TextButton.styleFrom(
+            overlayColor: const Color(0xFFBDBDBD),
+          ),
           child: const Text(
             'Delete store',
             style: TextStyle(
