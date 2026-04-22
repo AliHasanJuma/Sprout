@@ -71,7 +71,7 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 4),
               CustomTextField(
                 label: 'Shop Name',
                 hintText: 'Enter your shop name',
@@ -83,13 +83,13 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
                 hintText: 'Enter a short and catchy Bio',
                 controller: _bioController,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height:70),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
-                    width: 24,
-                    height: 24,
+                    width: 32,
+                    height: 32,
                     child: Checkbox(
                       value: _agreeToTerms,
                       onChanged: (value) {

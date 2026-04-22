@@ -10,7 +10,7 @@ class BecomeASellerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    final topPadding = screenHeight * 0.10;
+    final topPadding = screenHeight * 0.08;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -24,8 +24,8 @@ class BecomeASellerPage extends StatelessWidget {
               // ── Block 1: icon + title as a tight pair ──
               Image.asset(
                 'assets/icons/Seller_picture.png',
-                width: 200,
-                height: 200,
+                width: 135,
+                height: 135,
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 20),
@@ -40,7 +40,7 @@ class BecomeASellerPage extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 72),
+              const SizedBox(height: 48),
 
               // ── Block 2: three feature rows, evenly spaced ──
               _buildFeatureRow(
@@ -61,7 +61,7 @@ class BecomeASellerPage extends StatelessWidget {
                 subtitle: 'Track sales and manage orders effortlessly.',
               ),
 
-              const SizedBox(height: 72),
+              const SizedBox(height: 60),
 
               // ── Block 3: CTA button ──
               GestureDetector(
@@ -85,7 +85,7 @@ class BecomeASellerPage extends StatelessWidget {
                       'Launch Your Shop',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.secondary,
+                        color: Color.fromARGB(255, 0, 0, 0),
                         fontSize: 16,
                         fontFamily: 'SF Pro Display',
                         fontWeight: FontWeight.w600,
@@ -110,10 +110,15 @@ class BecomeASellerPage extends StatelessWidget {
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
-      child: Row(
+      child: Row( 
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SvgPicture.asset(iconAsset, width: 40, height: 40),
+          SvgPicture.asset(
+            iconAsset,
+            width: 40,
+            height: 40,
+            colorFilter: const ColorFilter.mode(AppColors.secondary, BlendMode.srcIn),
+          ),
           const SizedBox(width: 20),
           Expanded(
             child: Column(

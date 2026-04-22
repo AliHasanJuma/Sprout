@@ -34,8 +34,8 @@ class StoreSettingsPage extends StatelessWidget {
                 'Store settings',
                 style: TextStyle(
                   fontFamily: 'SF Pro Display',
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w700,
                   color: Colors.black,
                 ),
               ),
@@ -46,7 +46,7 @@ class StoreSettingsPage extends StatelessWidget {
                 children: [
                   SellerSettingsRow(
                     iconAsset:
-                        'assets/UI icons package/PNG/Black/Edit/Edit_Pencil_01.png',
+                        'assets/UI icons package/PNG/Black/File/Note_Edit.png',
                     label: 'Name and bio',
                     isFirst: true,
                     onTap: () => _go(context, const EditNameBioPage()),
@@ -55,13 +55,13 @@ class StoreSettingsPage extends StatelessWidget {
                   SellerSettingsRow(
                     iconAsset:
                         'assets/UI icons package/PNG/Black/Media/Image_01.png',
-                    label: 'Store logo and banner',
+                    label: 'Logo and banner',
                     onTap: () => _go(context, const EditLogoBannerPage()),
                   ),
                   const _RowDivider(),
                   SellerSettingsRow(
                     iconAsset:
-                        'assets/UI icons package/PNG/Black/Interface/Tag.png',
+                        'assets/UI icons package/PNG/Black/File/Archive.png',
                     label: 'Category',
                     onTap: () => _go(context, const EditCategoryPage()),
                   ),
@@ -89,7 +89,7 @@ class StoreSettingsPage extends StatelessWidget {
                 children: [
                   SellerSettingsRow(
                     iconAsset:
-                        'assets/UI icons package/PNG/Black/Edit/Add_Plus_Square.png',
+                        'assets/UI icons package/PNG/Black/Edit/Add_Row.png',
                     label: 'Add a new shelf',
                     isFirst: true,
                     onTap: () => _go(context, const CreateShelfPage()),
@@ -97,7 +97,7 @@ class StoreSettingsPage extends StatelessWidget {
                   const _RowDivider(),
                   SellerSettingsRow(
                     iconAsset:
-                        'assets/UI icons package/PNG/Black/Interface/Trash_Empty.png',
+                        'assets/UI icons package/PNG/Black/Edit/Delete_Row.png',
                     label: 'Delete a shelf',
                     labelColor: const Color(0xFFE08A3C),
                     chevronColor: const Color(0xFFE08A3C),

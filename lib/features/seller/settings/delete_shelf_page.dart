@@ -61,6 +61,9 @@ class _DeleteShelfPageState extends State<DeleteShelfPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, false),
+            style: TextButton.styleFrom(
+              overlayColor: const Color.fromARGB(255, 182, 182, 182),
+            ),
             child: const Text(
               'Cancel',
               style: TextStyle(
@@ -73,6 +76,9 @@ class _DeleteShelfPageState extends State<DeleteShelfPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
+            style: TextButton.styleFrom(
+              overlayColor: const Color.fromARGB(255, 190, 190, 190),
+            ),
             child: const Text(
               'Delete',
               style: TextStyle(

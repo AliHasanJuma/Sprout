@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../shared/widgets/app_top_bar.dart';
 import '../../shared/widgets/custom_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -66,22 +67,54 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: 'Verifying'),
       body: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Enter Verification Code', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 4),
+            const Text(
+              'Enter Verification code',
+              style: TextStyle(
+                fontFamily: 'SF Pro Display',
+                color: AppColors.secondary,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'We sent you a code via SMS.',
+              style: TextStyle(
+                color: AppColors.secondary.withValues(alpha: 0.7),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(6, (index) {
                 return Container(
-                  width: 45, height: 55,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey)),
+                  width: 45,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFDEDEDE)),
+                  ),
                   child: TextField(
-                    controller: _controllers[index], focusNode: _focusNodes[index],
-                    textAlign: TextAlign.center, keyboardType: TextInputType.number, maxLength: 1,
+                    controller: _controllers[index],
+                    focusNode: _focusNodes[index],
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    maxLength: 1,
+                    style: const TextStyle(
+                      color: AppColors.secondary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: const InputDecoration(counterText: '', border: InputBorder.none),
                     onChanged: (v) {
                       if (v.isNotEmpty && index < 5) _focusNodes[index + 1].requestFocus();
@@ -90,6 +123,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 );
               }),
             ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () {},
+              child: const Text(
+                'Resend code?',
+                style: TextStyle(
+                  color: AppColors.secondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
             const SizedBox(height: 48),
             CustomButton(
               text: _isVerifying ? 'Verifying...' : 'Continue',
@@ -97,33 +142,30 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 setState(() => _isVerifying = true);
                 String code = _controllers.map((e) => e.text).join();
                 final nav = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
 
                 try {
-                  // 1. Authenticate with Firebase
                   PhoneAuthCredential credential = PhoneAuthProvider.credential(
                     verificationId: widget.verificationId,
                     smsCode: code,
                   );
 
                   UserCredential userCred = await FirebaseAuth.instance.signInWithCredential(credential);
-                  
+
                   if (userCred.user != null) {
-                    // 2. Save to Cloud (Firestore)
                     await _saveUserToFirestore(userCred.user!.uid);
                     await userCred.user!.updateDisplayName('${widget.firstName} ${widget.lastName}');
-                    
-                    // ── 3. SAVE TO LOCAL MEMORY (Shared Preferences) ──
+
                     final prefs = await SharedPreferences.getInstance();
-                    await prefs.setString('language', 'en'); 
-                    
-                    // 4. Navigate to success screen
+                    await prefs.setString('language', 'en');
+
                     nav.pushReplacement(MaterialPageRoute(builder: (_) => AllSetScreen(
-                      firstName: widget.firstName, 
-                      lastName: widget.lastName
+                      firstName: widget.firstName,
+                      lastName: widget.lastName,
                     )));
                   }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incorrect code. Please try again.')));
+                  messenger.showSnackBar(const SnackBar(content: Text('Incorrect code. Please try again.')));
                 } finally {
                   if (mounted) setState(() => _isVerifying = false);
                 }

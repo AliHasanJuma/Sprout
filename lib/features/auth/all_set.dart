@@ -41,13 +41,15 @@ class AllSetScreen extends StatelessWidget {
                       
                       
                       const Text(
-                        'Welcome to the family!',
+                        'You’re all set!',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'SF Pro Display',
-                          fontSize: 16,
+                          fontSize: 32,
                           fontWeight: FontWeight.w900,
-                          color: AppColors.secondary,
+                          leadingDistribution: TextLeadingDistribution.even,
+                          height: 1.2,
+                          color: Color.fromARGB(255, 0, 0, 0),
                         ),
                       ),
                       
@@ -60,7 +62,7 @@ class AllSetScreen extends StatelessWidget {
                           fontFamily: 'SF Pro Display',
                           fontSize: 14,
                           fontWeight: FontWeight.normal,
-                          color: AppColors.secondary,
+                          color: Color.fromARGB(255, 133, 133, 133),
                         ),
                       ),
                     ],
@@ -71,7 +73,7 @@ class AllSetScreen extends StatelessWidget {
                 
                 // All set button - with proper padding from parent
                 CustomButton(
-                  text: 'All set!',
+                  text: 'Start exploring',
                   onPressed: () {
                     Navigator.pushAndRemoveUntil(
                       context,

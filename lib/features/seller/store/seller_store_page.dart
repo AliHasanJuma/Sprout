@@ -7,6 +7,7 @@ import '../models/store_model.dart';
 import '../services/shelf_service.dart';
 import '../settings/store_settings_page.dart';
 import '../shelf/create_shelf_page.dart';
+import '../shelf/edit_shelf_page.dart';
 import '../shelves_tab.dart';
 
 class SellerStorePage extends StatefulWidget {
@@ -59,7 +60,7 @@ class _SellerStorePageState extends State<SellerStorePage>
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CreateShelfPage(initial: shelf, isEditing: true),
+        builder: (_) => EditShelfPage(shelf: shelf),
       ),
     );
     _loadShelves();
@@ -580,7 +581,7 @@ class _SellerStorePageState extends State<SellerStorePage>
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Available sizes: ${shelf.sizes.map((s) => '${s.size} (${s.price} BD)').join(', ')}',
+                  'Available sizes: ${shelf.sizes.map((s) => '${s.size} (${(shelf.price + s.priceModifier).toStringAsFixed(2)} BD)').join(', ')}',
                   style: const TextStyle(
                     fontFamily: 'SF Pro Display',
                     fontSize: 12,
@@ -601,7 +602,7 @@ class _SellerStorePageState extends State<SellerStorePage>
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Add-ons: ${shelf.addOns.map((a) => '${a.name} (+${a.price} BD)').join(', ')}',
+                  'Add-ons: ${shelf.addOns.map((a) => '${a.name} (+${a.priceModifier.toStringAsFixed(2)} BD)').join(', ')}',
                   style: const TextStyle(
                     fontFamily: 'SF Pro Display',
                     fontSize: 12,

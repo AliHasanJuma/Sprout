@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, defaultTargetP
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import '../../core/constants/app_colors.dart';
+import '../../shared/widgets/app_top_bar.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'login_screen.dart';
@@ -121,16 +122,8 @@ if (kDebugMode) {
     // Standard build UI (same as your current one)
     final Color borderColor = _phoneFocusNode.hasFocus ? const Color(0xFFDAF64F) : const Color(0xFFDEDEDE);
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent, elevation: 0,
-        leading: IconButton(
-          icon: Image.asset('assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png', width: 24, height: 24),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Phone Number', style: TextStyle(color: AppColors.secondary)),
-        centerTitle: true,
-      ),
+      backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: 'Phone Number'),
       body: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(

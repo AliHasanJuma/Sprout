@@ -71,7 +71,7 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 4),
               const Text(
                 'What do you do?',
                 style: TextStyle(
@@ -81,7 +81,7 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
                   color: AppColors.secondary,
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
               ..._categories.asMap().entries.map((entry) {
                 final index = entry.key;
                 final categoryName = entry.value;
@@ -92,7 +92,8 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
                     GestureDetector(
                       onTap: () {
                         setState(() {
-                          _selectedCategory = categoryName;
+                          _selectedCategory =
+                              isSelected ? null : categoryName;
                         });
                       },
                       child: Container(
@@ -154,7 +155,7 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
                       ),
                     ),
                     if (index < _categories.length - 1)
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                   ],
                 );
               }),

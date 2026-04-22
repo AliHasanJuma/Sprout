@@ -31,12 +31,12 @@ class _RefineShelfPageState extends State<RefineShelfPage> {
   void initState() {
     super.initState();
     _ingredients = List.from(widget.draft.ingredients);
-    _sizeRows = widget.draft.sizes.isEmpty
-        ? [_SizeRow()]
-        : widget.draft.sizes.map((s) => _SizeRow(size: s.size, price: s.price.toString())).toList();
-    _addOnRows = widget.draft.addOns.isEmpty
-        ? [_AddOnRow()]
-        : widget.draft.addOns.map((a) => _AddOnRow(name: a.name, price: a.price.toString())).toList();
+    _sizeRows = widget.draft.sizes
+        .map((s) => _SizeRow(size: s.size, price: s.priceModifier.toString()))
+        .toList();
+    _addOnRows = widget.draft.addOns
+        .map((a) => _AddOnRow(name: a.name, price: a.priceModifier.toString()))
+        .toList();
   }
 
   @override
@@ -75,7 +75,7 @@ class _RefineShelfPageState extends State<RefineShelfPage> {
             double.tryParse(r.priceController.text.trim()) != null)
         .map((r) => SizeOption(
               size: r.sizeController.text.trim(),
-              price: double.parse(r.priceController.text.trim()),
+              priceModifier: double.parse(r.priceController.text.trim()),
             ))
         .toList();
 
@@ -85,7 +85,7 @@ class _RefineShelfPageState extends State<RefineShelfPage> {
             double.tryParse(r.priceController.text.trim()) != null)
         .map((r) => AddOnOption(
               name: r.nameController.text.trim(),
-              price: double.parse(r.priceController.text.trim()),
+              priceModifier: double.parse(r.priceController.text.trim()),
             ))
         .toList();
 
@@ -214,23 +214,15 @@ class _RefineShelfPageState extends State<RefineShelfPage> {
                   rightController: _sizeRows[i].priceController,
                   rightHint: 'Price',
                   showPricePrefix: true,
-                  onRemove: _sizeRows.length > 1
-                      ? () {
-                          setState(() {
-                            _sizeRows[i].dispose();
-                            _sizeRows.removeAt(i);
-                          });
-                        }
-                      : () {
-                          setState(() {
-                            _sizeRows[i].sizeController.clear();
-                            _sizeRows[i].priceController.clear();
-                          });
-                        },
+                  onRemove: () {
+                    setState(() {
+                      _sizeRows[i].dispose();
+                      _sizeRows.removeAt(i);
+                    });
+                  },
                 ),
-                if (i < _sizeRows.length - 1) const SizedBox(height: 10),
+                const SizedBox(height: 10),
               ],
-              const SizedBox(height: 12),
               _AddAction(
                 label: 'Add a new size',
                 onTap: () => setState(() => _sizeRows.add(_SizeRow())),
@@ -253,23 +245,15 @@ class _RefineShelfPageState extends State<RefineShelfPage> {
                   rightController: _addOnRows[i].priceController,
                   rightHint: 'Price',
                   showPricePrefix: true,
-                  onRemove: _addOnRows.length > 1
-                      ? () {
-                          setState(() {
-                            _addOnRows[i].dispose();
-                            _addOnRows.removeAt(i);
-                          });
-                        }
-                      : () {
-                          setState(() {
-                            _addOnRows[i].nameController.clear();
-                            _addOnRows[i].priceController.clear();
-                          });
-                        },
+                  onRemove: () {
+                    setState(() {
+                      _addOnRows[i].dispose();
+                      _addOnRows.removeAt(i);
+                    });
+                  },
                 ),
-                if (i < _addOnRows.length - 1) const SizedBox(height: 10),
+                const SizedBox(height: 10),
               ],
-              const SizedBox(height: 12),
               _AddAction(
                 label: 'Add a new add-on',
                 onTap: () => setState(() => _addOnRows.add(_AddOnRow())),
@@ -383,7 +367,7 @@ class _PairedRow extends StatelessWidget {
                         alignment: Alignment.centerLeft,
                         widthFactor: 1.0,
                         child: Text(
-                          'BD',
+                          '+ BD',
                           style: TextStyle(
                             fontFamily: 'SF Pro Display',
                             fontSize: 13,

@@ -102,7 +102,7 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 4),
               const Text(
                 'Upload store logo',
                 style: TextStyle(

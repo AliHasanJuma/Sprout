@@ -5,30 +5,32 @@ enum PriceType { fixed, startingAt }
 @immutable
 class SizeOption {
   final String size;
-  final double price;
+  // Added on top of the shelf's base price; not a replacement price.
+  final double priceModifier;
 
-  const SizeOption({required this.size, required this.price});
+  const SizeOption({required this.size, required this.priceModifier});
 
-  Map<String, dynamic> toMap() => {'size': size, 'price': price};
+  Map<String, dynamic> toMap() => {'size': size, 'priceModifier': priceModifier};
 
   factory SizeOption.fromMap(Map<String, dynamic> map) => SizeOption(
         size: map['size'] as String,
-        price: (map['price'] as num).toDouble(),
+        priceModifier: (map['priceModifier'] as num).toDouble(),
       );
 }
 
 @immutable
 class AddOnOption {
   final String name;
-  final double price;
+  // Added on top of the buyer's running total; not a replacement price.
+  final double priceModifier;
 
-  const AddOnOption({required this.name, required this.price});
+  const AddOnOption({required this.name, required this.priceModifier});
 
-  Map<String, dynamic> toMap() => {'name': name, 'price': price};
+  Map<String, dynamic> toMap() => {'name': name, 'priceModifier': priceModifier};
 
   factory AddOnOption.fromMap(Map<String, dynamic> map) => AddOnOption(
         name: map['name'] as String,
-        price: (map['price'] as num).toDouble(),
+        priceModifier: (map['priceModifier'] as num).toDouble(),
       );
 }
 

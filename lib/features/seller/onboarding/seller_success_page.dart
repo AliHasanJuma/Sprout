@@ -19,8 +19,8 @@ class SellerSuccessPage extends StatelessWidget {
               const Spacer(flex: 3),
               Image.asset(
                 'assets/icons/Seller_picture.png',
-                width: 200,
-                height: 200,
+                width: 135,
+                height: 135,
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 32),
@@ -47,7 +47,7 @@ class SellerSuccessPage extends StatelessWidget {
                   height: 1.45,
                 ),
               ),
-              const Spacer(flex: 4),
+              const Spacer(flex: 2),
               GestureDetector(
                 onTap: () {
                   Navigator.pushReplacement(
@@ -68,7 +68,7 @@ class SellerSuccessPage extends StatelessWidget {
                     child: Text(
                       'Add Product',
                       style: TextStyle(
-                        color: AppColors.secondary,
+                        color: Color.fromARGB(255, 0, 0, 0),
                         fontSize: 16,
                         fontFamily: 'SF Pro Display',
                         fontWeight: FontWeight.w600,
@@ -99,7 +99,7 @@ class SellerSuccessPage extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 100),
             ],
           ),
         ),
