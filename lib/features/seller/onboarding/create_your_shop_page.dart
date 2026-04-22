@@ -1,18 +1,21 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
-import '../../core/constants/app_colors.dart';
-import '../../shared/widgets/custom_button.dart';
-import '../../shared/widgets/custom_textfield.dart';
+import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/custom_button.dart';
+import '../../../shared/widgets/custom_textfield.dart';
+import '../models/store_model.dart';
+import '../widgets/seller_app_bar.dart';
 import 'choose_category_page.dart';
 
-class CreateShopPage extends StatefulWidget {
-  const CreateShopPage({super.key});
+class CreateYourShopPage extends StatefulWidget {
+  const CreateYourShopPage({super.key});
 
   @override
-  State<CreateShopPage> createState() => _CreateShopPageState();
+  State<CreateYourShopPage> createState() => _CreateYourShopPageState();
 }
 
-class _CreateShopPageState extends State<CreateShopPage> {
+class _CreateYourShopPageState extends State<CreateYourShopPage> {
   final TextEditingController _shopNameController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
   bool _agreeToTerms = false;
@@ -49,18 +52,11 @@ class _CreateShopPageState extends State<CreateShopPage> {
       return;
     }
 
-    // TODO: Save shop data to Firestore
-    print('Shop Name: $shopName');
-    print('Bio: $bio');
-    
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   const SnackBar(content: Text('Shop created successfully!')),
-    // );
-    
-    // Navigate to category selection
+    final draft = StoreModel(name: shopName, bio: bio);
+
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ChooseCategoryPage()),
+      MaterialPageRoute(builder: (_) => ChooseCategoryPage(draft: draft)),
     );
   }
 
@@ -68,29 +64,7 @@ class _CreateShopPageState extends State<CreateShopPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Image.asset(
-            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
-            width: 24,
-            height: 24,
-            color: const Color(0xFF003E3B),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Create your shop',
-          style: TextStyle(
-            fontFamily: 'SF Pro Display',
-            color: Color(0xFF003E3B),
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      appBar: const SellerAppBar(title: 'Create your shop'),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
@@ -98,26 +72,18 @@ class _CreateShopPageState extends State<CreateShopPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
-              
-              // Shop Name Field
               CustomTextField(
                 label: 'Shop Name',
                 hintText: 'Enter your shop name',
                 controller: _shopNameController,
               ),
-              
               const SizedBox(height: 16),
-              
-              // Short Bio Field
               CustomTextField(
                 label: 'Short Bio',
                 hintText: 'Enter a short and catchy Bio',
                 controller: _bioController,
               ),
-              
               const SizedBox(height: 32),
-              
-              // Terms & Conditions Checkbox
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -133,7 +99,10 @@ class _CreateShopPageState extends State<CreateShopPage> {
                       },
                       activeColor: AppColors.primary,
                       checkColor: AppColors.secondary,
-                      side: const BorderSide(color: Color(0xFFDEDEDE), width: 1.0),
+                      side: const BorderSide(
+                        color: Color(0xFFDEDEDE),
+                        width: 1.0,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -175,9 +144,10 @@ class _CreateShopPageState extends State<CreateShopPage> {
                                 ),
                                 recognizer: TapGestureRecognizer()
                                   ..onTap = () {
-                                    // TODO: Navigate to terms page
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Terms page coming soon!')),
+                                      const SnackBar(
+                                        content: Text('Terms page coming soon!'),
+                                      ),
                                     );
                                   },
                               ),
@@ -189,17 +159,13 @@ class _CreateShopPageState extends State<CreateShopPage> {
                   ),
                 ],
               ),
-              
               const SizedBox(height: 48),
-              
-              // Continue Button
               CustomButton(
                 text: 'Continue',
                 onPressed: _handleContinue,
                 backgroundColor: AppColors.primary,
                 textColor: Colors.black,
               ),
-              
               const SizedBox(height: 32),
             ],
           ),

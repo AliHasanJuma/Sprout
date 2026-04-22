@@ -79,6 +79,9 @@ flutter:
       - assets/UI icons package/PNG/Black/Communication/
       - assets/UI icons package/PNG/Black/Interface/
       - assets/UI icons package/PNG/Black/Edit/
+      - assets/UI icons package/PNG/Black/File/
+      - assets/UI icons package/PNG/Black/Menu/
+      - assets/UI icons package/PNG/Black/Media/
       - assets/UI icons package/PNG/White/Communication/
       - assets/icons/
       - assets/logo/
@@ -87,6 +90,53 @@ flutter:
       - assets/images/
       - assets/images/category/
       - assets/images/home page widgets/
+      - assets/Becpme a seller icons/
+
+  fonts:
+    - family: SF Pro Display
+      fonts:
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Regular.otf
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-RegularItalic.otf
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Light.otf
+          weight: 300
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-LightItalic.otf
+          weight: 300
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Medium.otf
+          weight: 500
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-MediumItalic.otf
+          weight: 500
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Semibold.otf
+          weight: 600
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-SemiboldItalic.otf
+          weight: 600
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Bold.otf
+          weight: 700
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-BoldItalic.otf
+          weight: 700
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Heavy.otf
+          weight: 800
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-HeavyItalic.otf
+          weight: 800
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Black.otf
+          weight: 900
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-BlackItalic.otf
+          weight: 900
+          style: italic
+    - family: SF Pro Text
+      fonts:
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Regular.otf
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Medium.otf
+          weight: 500
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Semibold.otf
+          weight: 600
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Bold.otf
+          weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

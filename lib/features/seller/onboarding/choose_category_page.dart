@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
-import '../../shared/widgets/custom_button.dart';
+
+import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/custom_button.dart';
+import '../models/store_model.dart';
+import '../services/seller_service.dart';
+import '../widgets/seller_app_bar.dart';
 import 'customize_store_page.dart';
 
 class ChooseCategoryPage extends StatefulWidget {
-  const ChooseCategoryPage({super.key});
+  final StoreModel draft;
+  final bool isEditing;
+
+  const ChooseCategoryPage({
+    super.key,
+    required this.draft,
+    this.isEditing = false,
+  });
 
   @override
   State<ChooseCategoryPage> createState() => _ChooseCategoryPageState();
@@ -22,53 +33,37 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
     'Fashion',
   ];
 
-  void _handleContinue() {
-    if (_selectedCategory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a category')),
-      );
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = widget.draft.category;
+  }
+
+  Future<void> _handleContinue() async {
+    if (_selectedCategory == null) return;
+
+    final updated = widget.draft.copyWith(category: _selectedCategory);
+
+    if (widget.isEditing) {
+      await SellerService().updateStore(updated);
+      if (mounted) Navigator.pop(context, updated);
       return;
     }
 
-    // TODO: Save category to Firestore and navigate to next step
-    print('Selected category: $_selectedCategory');
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Category selected: $_selectedCategory')),
-    );
-    
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const CustomizeStorePage()),
+      MaterialPageRoute(builder: (_) => CustomizeStorePage(draft: updated)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final canContinue = _selectedCategory != null;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Image.asset(
-            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
-            width: 24,
-            height: 24,
-            color: const Color(0xFF003E3B),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Choose a category',
-          style: TextStyle(
-            fontFamily: 'SF Pro Display',
-            color: Color(0xFF003E3B),
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        centerTitle: true,
+      appBar: SellerAppBar(
+        title: widget.isEditing ? 'Edit category' : 'Choose a category',
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -77,26 +72,21 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
-              
-              // Question text
               const Text(
                 'What do you do?',
                 style: TextStyle(
                   fontFamily: 'SF Pro Display',
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF003E3B),
+                  color: AppColors.secondary,
                 ),
               ),
-              
               const SizedBox(height: 40),
-              
-              // Category options
               ..._categories.asMap().entries.map((entry) {
                 final index = entry.key;
                 final categoryName = entry.value;
                 final isSelected = _selectedCategory == categoryName;
-                
+
                 return Column(
                   children: [
                     GestureDetector(
@@ -113,15 +103,14 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSelected 
-                                ? AppColors.primary 
+                            color: isSelected
+                                ? AppColors.primary
                                 : const Color(0xFFC3C3C3),
                             width: isSelected ? 1.5 : 1.0,
                           ),
                         ),
                         child: Row(
                           children: [
-                            // Category name
                             Expanded(
                               child: Text(
                                 categoryName,
@@ -129,21 +118,20 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
                                   fontFamily: 'SF Pro Display',
                                   fontSize: 16,
                                   fontWeight: FontWeight.w400,
-                                  color: isSelected 
-                                      ? Colors.black 
+                                  color: isSelected
+                                      ? Colors.black
                                       : const Color(0xFF9F9F9F),
                                 ),
                               ),
                             ),
-                            // Radio circle
                             Container(
                               width: 24,
                               height: 24,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isSelected 
-                                      ? AppColors.primary 
+                                  color: isSelected
+                                      ? AppColors.primary
                                       : const Color(0xFFC3C3C3),
                                   width: 1.5,
                                 ),
@@ -165,22 +153,20 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
                         ),
                       ),
                     ),
-                    if (index < _categories.length - 1) 
+                    if (index < _categories.length - 1)
                       const SizedBox(height: 12),
                   ],
                 );
               }),
-              
               const SizedBox(height: 48),
-              
-              // Continue Button
               CustomButton(
-                text: 'Continue',
-                onPressed: _handleContinue,
-                backgroundColor: AppColors.primary,
+                text: widget.isEditing ? 'Save changes' : 'Continue',
+                onPressed: canContinue ? _handleContinue : null,
+                backgroundColor: canContinue
+                    ? AppColors.primary
+                    : const Color(0xFFE5E5E5),
                 textColor: Colors.black,
               ),
-              
               const SizedBox(height: 32),
             ],
           ),

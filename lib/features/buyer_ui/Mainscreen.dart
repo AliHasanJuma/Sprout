@@ -4,24 +4,24 @@ import '../../shared/widgets/navbar.dart';
 import 'home_page.dart';
 import '../../screens/chats_page.dart';
 import '../../screens/favourite_page.dart';
-import '../../screens/shelves_page.dart';
+import '../seller/shelves_tab.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final int initialIndex;
+  const MainScreen({super.key, this.initialIndex = 0});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex = widget.initialIndex;
 
-  // Since Firebase handles real-time updates, we don't need Keys anymore!
   final List<Widget> _pages = const [
     HomePage(),
     ChatsPage(),
     FavouritePage(),
-    ShelvesPage(),
+    ShelvesTab(),
   ];
 
   @override
@@ -34,7 +34,6 @@ class _MainScreenState extends State<MainScreen> {
           setState(() {
             _currentIndex = index;
           });
-          // The old manual refresh logic was deleted here
         },
       ),
     );
