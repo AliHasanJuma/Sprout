@@ -31,6 +31,7 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
     final shopName = _shopNameController.text.trim();
     final bio = _bioController.text.trim();
 
+    // ── 1. EMPTY CHECKS ──
     if (shopName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter your shop name')),
@@ -52,6 +53,25 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
       return;
     }
 
+    // ── 2. NEW STRICT VALIDATION ──
+    // This Regex checks if there is at least one English OR Arabic letter.
+    final hasLetters = RegExp(r'[a-zA-Zأ-ي]'); 
+
+    if (!hasLetters.hasMatch(shopName) || shopName.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shop name must contain letters and be at least 3 characters long.')),
+      );
+      return;
+    }
+
+    if (!hasLetters.hasMatch(bio) || bio.length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bio must contain letters and be at least 10 characters long.')),
+      );
+      return;
+    }
+
+    // ── 3. PASS TO NEXT SCREEN (NO FIREBASE YET) ──
     final draft = StoreModel(name: shopName, bio: bio);
 
     Navigator.push(

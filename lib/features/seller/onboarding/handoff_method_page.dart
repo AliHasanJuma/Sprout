@@ -42,27 +42,44 @@ class _HandoffMethodPageState extends State<HandoffMethodPage> {
     });
   }
 
+  // ── UPDATED: ADDED TRY/CATCH TO PREVENT SILENT CRASHES ──
   Future<void> _handleContinue() async {
     if (_selected.isEmpty || _submitting) return;
 
     final updated = widget.draft.copyWith(handoffMethods: _selected.toList());
 
-    if (widget.isEditing) {
-      setState(() => _submitting = true);
-      await SellerService().updateStore(updated);
-      if (!mounted) return;
-      Navigator.pop(context, updated);
-      return;
-    }
-
     setState(() => _submitting = true);
-    await SellerService().createStore(updated);
-    if (!mounted) return;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const SellerSuccessPage()),
-    );
+    try {
+      if (widget.isEditing) {
+        await SellerService().updateStore(updated);
+        if (!mounted) return;
+        Navigator.pop(context, updated);
+        return;
+      }
+
+      await SellerService().createStore(updated);
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SellerSuccessPage()),
+      );
+    } catch (e) {
+      // ── THIS CATCHES FIREBASE PERMISSION OR NETWORK ERRORS ──
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override

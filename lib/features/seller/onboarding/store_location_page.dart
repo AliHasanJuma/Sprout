@@ -56,15 +56,19 @@ class _StoreLocationPageState extends State<StoreLocationPage> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
+      
+      // Grabs the default buyer location from Firestore!
       final snap = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
       final data = snap.data();
       if (data == null) return;
+      
       final address = data['location'] as String?;
       final lat = (data['latitude'] as num?)?.toDouble();
       final lng = (data['longitude'] as num?)?.toDouble();
+      
       if (address != null && address.isNotEmpty && mounted) {
         setState(() {
           _locationController.text = address;
@@ -73,7 +77,7 @@ class _StoreLocationPageState extends State<StoreLocationPage> {
         });
       }
     } catch (_) {
-      // Silent — user can still type or tap the crosshair.
+      // Silent error — user can still type or tap the crosshair.
     }
   }
 
@@ -125,7 +129,7 @@ class _StoreLocationPageState extends State<StoreLocationPage> {
         _locationController.text = locationText;
       }
     } catch (e) {
-      _showError('Could not detect location. Please enter manually.');
+      _showError('Could not detect location. Please tap the crosshair to try again.');
     }
 
     if (mounted) setState(() => _isLoadingLocation = false);
@@ -138,10 +142,17 @@ class _StoreLocationPageState extends State<StoreLocationPage> {
       return;
     }
 
+    // ── STRICT BACKEND VALIDATION ──
+    // We MUST have real coordinates so the "Near Me" sorting math doesn't break!
+    if (_latitude == null || _longitude == null) {
+      _showError('Please tap the GPS icon to grab exact coordinates so buyers can find you!');
+      return;
+    }
+
     final updated = widget.draft.copyWith(
       location: StoreLocation(
-        lat: _latitude ?? 0,
-        lng: _longitude ?? 0,
+        lat: _latitude!, 
+        lng: _longitude!,
         address: address,
       ),
     );
@@ -162,7 +173,7 @@ class _StoreLocationPageState extends State<StoreLocationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const SellerAppBar(title: 'store Location'),
+      appBar: const SellerAppBar(title: 'Store Location'),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(32.0),

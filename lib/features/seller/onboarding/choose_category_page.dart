@@ -36,20 +36,33 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
   @override
   void initState() {
     super.initState();
+    // If they go "Back" to this page, it remembers what they previously selected
     _selectedCategory = widget.draft.category;
   }
 
   Future<void> _handleContinue() async {
-    if (_selectedCategory == null) return;
+    // ── 1. VALIDATION: FORCE SELECTION ──
+    if (_selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a category to continue.')),
+      );
+      return;
+    }
 
+    // ── 2. LOCAL RAM SAVE ──
+    // This updates the temporary draft object without touching Firebase
     final updated = widget.draft.copyWith(category: _selectedCategory);
 
+    // ── 3. EDIT MODE OVERRIDE (For later) ──
+    // If the seller is editing an already existing store from their dashboard, 
+    // this pushes the change to Firebase immediately.
     if (widget.isEditing) {
       await SellerService().updateStore(updated);
       if (mounted) Navigator.pop(context, updated);
       return;
     }
 
+    // ── 4. PASS DRAFT TO NEXT SCREEN ──
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => CustomizeStorePage(draft: updated)),
@@ -92,8 +105,8 @@ class _ChooseCategoryPageState extends State<ChooseCategoryPage> {
                     GestureDetector(
                       onTap: () {
                         setState(() {
-                          _selectedCategory =
-                              isSelected ? null : categoryName;
+                          // Toggles selection off if tapped again, otherwise selects the new one
+                          _selectedCategory = isSelected ? null : categoryName;
                         });
                       },
                       child: Container(

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart'; // ── NEW IMPORT ──
 
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -38,16 +39,27 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
     _existingBannerPath = widget.draft.bannerPath;
   }
 
+  // ── UPDATED: SECURE LOCAL SAVING ──
   Future<void> _pickImage(bool isLogo) async {
     final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (image != null) {
+    if (pickedFile != null) {
+      // 1. Get the app's safe document directory
+      final directory = await getApplicationDocumentsDirectory();
+      
+      // 2. Create a unique file name so images don't overwrite each other
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${isLogo ? 'logo' : 'banner'}.jpg';
+      
+      // 3. Copy the file from the temporary cache to the safe directory
+      final savedImage = await File(pickedFile.path).copy('${directory.path}/$fileName');
+
+      // 4. Update the UI
       setState(() {
         if (isLogo) {
-          _logoImage = File(image.path);
+          _logoImage = savedImage;
         } else {
-          _bannerImage = File(image.path);
+          _bannerImage = savedImage;
         }
       });
     }
@@ -62,7 +74,7 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
   Future<void> _handleContinue() async {
     if (!_canContinue) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload both a logo and banner')),
+        const SnackBar(content: Text('Please upload both a logo and a banner to make your shop look great!')),
       );
       return;
     }
@@ -70,6 +82,7 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
     final logoPath = _logoImage?.path ?? _existingLogoPath;
     final bannerPath = _bannerImage?.path ?? _existingBannerPath;
 
+    // Save the safe local file paths to the draft in RAM
     final updated = widget.draft.copyWith(
       logoPath: logoPath,
       bannerPath: bannerPath,
@@ -85,6 +98,21 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
       context,
       MaterialPageRoute(builder: (_) => StoreLocationPage(draft: updated)),
     );
+  }
+
+  // Prevents crashes by checking if the image is from the web or the local phone
+  Widget _buildImagePreview(File? newFile, String? existingPath, double width, double height) {
+    if (newFile != null) {
+      return Image.file(newFile, width: width, height: height, fit: BoxFit.cover);
+    }
+    if (existingPath != null) {
+      if (existingPath.startsWith('http')) {
+        return Image.network(existingPath, width: width, height: height, fit: BoxFit.cover);
+      } else {
+        return Image.file(File(existingPath), width: width, height: height, fit: BoxFit.cover);
+      }
+    }
+    return const SizedBox.shrink(); 
   }
 
   @override
@@ -138,19 +166,7 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: _logoImage != null
-                        ? Image.file(
-                            _logoImage!,
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.file(
-                            File(_existingLogoPath!),
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                          ),
+                    child: _buildImagePreview(_logoImage, _existingLogoPath, 80, 80),
                   ),
                 ),
               ],
@@ -190,19 +206,7 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: _bannerImage != null
-                        ? Image.file(
-                            _bannerImage!,
-                            width: double.infinity,
-                            height: 100,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.file(
-                            File(_existingBannerPath!),
-                            width: double.infinity,
-                            height: 100,
-                            fit: BoxFit.cover,
-                          ),
+                    child: _buildImagePreview(_bannerImage, _existingBannerPath, double.infinity, 100),
                   ),
                 ),
               ],
@@ -210,7 +214,7 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
               CustomButton(
                 text: widget.isEditing ? 'Save changes' : 'Continue',
                 onPressed: _handleContinue,
-                backgroundColor: AppColors.primary,
+                backgroundColor: _canContinue ? AppColors.primary : const Color(0xFFE5E5E5),
                 textColor: Colors.black,
               ),
               const SizedBox(height: 32),
