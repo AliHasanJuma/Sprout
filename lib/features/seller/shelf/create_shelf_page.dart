@@ -91,8 +91,14 @@ class _CreateShelfPageState extends State<CreateShelfPage> {
       ..._photos.map((f) => f.path),
     ];
 
-    final draft = (widget.initial ?? const ShelfModel(name: '', description: '', price: 0))
-        .copyWith(
+    // ── FIX: Added storeId: '' to prevent compile errors ──
+    // We will inject the REAL storeId in the RefineShelfPage before saving!
+    final draft = (widget.initial ?? const ShelfModel(
+      storeId: '', 
+      name: '', 
+      description: '', 
+      price: 0
+    )).copyWith(
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
       photoPaths: paths,
@@ -133,7 +139,7 @@ class _CreateShelfPageState extends State<CreateShelfPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
-              _FieldLabel('Product name'),
+              const _FieldLabel('Product name'),
               const SizedBox(height: 8),
               _TextInput(
                 controller: _nameController,
@@ -141,7 +147,7 @@ class _CreateShelfPageState extends State<CreateShelfPage> {
                 hint: 'Enter your Product name',
               ),
               const SizedBox(height: 24),
-              _FieldLabel('Product description'),
+              const _FieldLabel('Product description'),
               const SizedBox(height: 8),
               _TextInput(
                 controller: _descriptionController,

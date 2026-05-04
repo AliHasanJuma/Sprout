@@ -31,6 +31,7 @@ class _SellerStorePageState extends State<SellerStorePage>
   }
 
   Future<void> _loadShelves() async {
+    setState(() => _loading = true);
     final shelves = await ShelfService().getMyShelves();
     if (!mounted) return;
     setState(() {
@@ -64,6 +65,26 @@ class _SellerStorePageState extends State<SellerStorePage>
       ),
     );
     _loadShelves();
+  }
+
+  // Helper widget to safely load either local files or Firebase URLs
+  Widget _buildSafeImage(String path, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+    if (path.startsWith('http')) {
+      return Image.network(
+        path,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (_, __, ___) => Container(width: width, height: height, color: const Color(0xFFCDEB45)),
+      );
+    }
+    return Image.file(
+      File(path),
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (_, __, ___) => Container(width: width, height: height, color: const Color(0xFFCDEB45)),
+    );
   }
 
   @override
@@ -151,13 +172,7 @@ class _SellerStorePageState extends State<SellerStorePage>
               width: double.infinity,
               height: 220,
               child: store.bannerPath != null
-                  ? Image.file(
-                      File(store.bannerPath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: const Color(0xFFCDEB45),
-                      ),
-                    )
+                  ? _buildSafeImage(store.bannerPath!)
                   : Container(color: const Color(0xFFCDEB45)),
             ),
           ),
@@ -227,11 +242,7 @@ class _SellerStorePageState extends State<SellerStorePage>
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: store.logoPath != null
-                      ? Image.file(
-                          File(store.logoPath!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                        )
+                      ? _buildSafeImage(store.logoPath!)
                       : const SizedBox.shrink(),
                 ),
               ),
@@ -384,20 +395,7 @@ class _SellerStorePageState extends State<SellerStorePage>
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: hasPhoto
-                      ? Image.file(
-                          File(shelf.photoPaths.first),
-                          width: 94,
-                          height: 112,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 94,
-                            height: 112,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD9D9D9),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        )
+                      ? _buildSafeImage(shelf.photoPaths.first, width: 94, height: 112)
                       : Container(
                           width: 94,
                           height: 112,
@@ -450,8 +448,11 @@ class _SellerStorePageState extends State<SellerStorePage>
                         ],
                       ),
                       const SizedBox(height: 6),
+                      // ── UPGRADE: Properly display "Starting at" if required ──
                       Text(
-                        '${shelf.price} BD',
+                        shelf.priceType == PriceType.startingAt 
+                            ? 'Starting at ${shelf.price} BD'
+                            : '${shelf.price} BD',
                         style: const TextStyle(
                           fontFamily: 'SF Pro Display',
                           fontSize: 14,
@@ -460,7 +461,6 @@ class _SellerStorePageState extends State<SellerStorePage>
                         ),
                       ),
                       const SizedBox(height: 10),
-                      // ── SELLER: single `Edit shelf` pill replaces Chat + Order now ──
                       GestureDetector(
                         onTap: () => _editShelf(shelf),
                         child: Container(

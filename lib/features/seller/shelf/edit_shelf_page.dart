@@ -110,50 +110,62 @@ class _EditShelfPageState extends State<EditShelfPage> {
     });
   }
 
+  // ── UPGRADE: Uploads NEW images to Firebase before saving ──
   Future<void> _handleSave() async {
     if (!_canSave || _submitting) return;
-
-    final paths = [
-      ..._existingPhotoPaths,
-      ..._photos.map((f) => f.path),
-    ];
-
-    final sizes = _sizeRows
-        .where((r) =>
-            r.sizeController.text.trim().isNotEmpty &&
-            double.tryParse(r.priceController.text.trim()) != null)
-        .map((r) => SizeOption(
-              size: r.sizeController.text.trim(),
-              priceModifier: double.parse(r.priceController.text.trim()),
-            ))
-        .toList();
-
-    final addOns = _addOnRows
-        .where((r) =>
-            r.nameController.text.trim().isNotEmpty &&
-            double.tryParse(r.priceController.text.trim()) != null)
-        .map((r) => AddOnOption(
-              name: r.nameController.text.trim(),
-              priceModifier: double.parse(r.priceController.text.trim()),
-            ))
-        .toList();
-
-    final updated = widget.shelf.copyWith(
-      name: _nameController.text.trim(),
-      description: _descriptionController.text.trim(),
-      photoPaths: paths,
-      priceType: _priceType,
-      price: double.parse(_priceController.text.trim()),
-      ingredients: _ingredients,
-      sizes: sizes,
-      addOns: addOns,
-    );
-
     setState(() => _submitting = true);
 
-    await ShelfService().updateShelf(updated);
-    if (!mounted) return;
-    Navigator.pop(context, true);
+    try {
+      // 1. Keep existing URLs, but upload any new local files to Storage
+      List<String> finalPhotoUrls = [..._existingPhotoPaths];
+      for (File file in _photos) {
+        String downloadUrl = await ShelfService().uploadShelfImage(file);
+        finalPhotoUrls.add(downloadUrl);
+      }
+
+      final sizes = _sizeRows
+          .where((r) =>
+              r.sizeController.text.trim().isNotEmpty &&
+              double.tryParse(r.priceController.text.trim()) != null)
+          .map((r) => SizeOption(
+                size: r.sizeController.text.trim(),
+                priceModifier: double.parse(r.priceController.text.trim()),
+              ))
+          .toList();
+
+      final addOns = _addOnRows
+          .where((r) =>
+              r.nameController.text.trim().isNotEmpty &&
+              double.tryParse(r.priceController.text.trim()) != null)
+          .map((r) => AddOnOption(
+                name: r.nameController.text.trim(),
+                priceModifier: double.parse(r.priceController.text.trim()),
+              ))
+          .toList();
+
+      final updated = widget.shelf.copyWith(
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        photoPaths: finalPhotoUrls, // Inject the secure web URLs
+        priceType: _priceType,
+        price: double.parse(_priceController.text.trim()),
+        ingredients: _ingredients,
+        sizes: sizes,
+        addOns: addOns,
+      );
+
+      await ShelfService().updateShelf(updated);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
@@ -217,6 +229,7 @@ class _EditShelfPageState extends State<EditShelfPage> {
                   ),
                 ),
               ),
+              // ── UPGRADE: Passing the string path instead of a File object ──
               if (_photos.isNotEmpty || _existingPhotoPaths.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 SizedBox(
@@ -225,8 +238,9 @@ class _EditShelfPageState extends State<EditShelfPage> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       for (final path in _existingPhotoPaths)
-                        _PhotoThumb(file: File(path)),
-                      for (final file in _photos) _PhotoThumb(file: file),
+                        _PhotoThumb(imagePath: path),
+                      for (final file in _photos) 
+                        _PhotoThumb(imagePath: file.path),
                     ],
                   ),
                 ),
@@ -443,9 +457,10 @@ class _TextInput extends StatelessWidget {
   }
 }
 
+// ── UPGRADE: Safely handles both Network URLs and Local Files ──
 class _PhotoThumb extends StatelessWidget {
-  final File file;
-  const _PhotoThumb({required this.file});
+  final String imagePath; 
+  const _PhotoThumb({required this.imagePath});
 
   @override
   Widget build(BuildContext context) {
@@ -453,7 +468,31 @@ class _PhotoThumb extends StatelessWidget {
       padding: const EdgeInsets.only(right: 8),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.file(file, width: 64, height: 64, fit: BoxFit.cover),
+        child: imagePath.startsWith('http')
+            ? Image.network(
+                imagePath,
+                width: 64,
+                height: 64,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 64,
+                  height: 64,
+                  color: const Color(0xFFD9D9D9),
+                  child: const Icon(Icons.broken_image, color: Colors.grey),
+                ),
+              )
+            : Image.file(
+                File(imagePath),
+                width: 64,
+                height: 64,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 64,
+                  height: 64,
+                  color: const Color(0xFFD9D9D9),
+                  child: const Icon(Icons.broken_image, color: Colors.grey),
+                ),
+              ),
       ),
     );
   }

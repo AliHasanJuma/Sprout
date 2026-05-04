@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
-import 'dart:math' as math; // ── ADDED FOR MATH ──
+import 'dart:math' as math; 
+import 'dart:async'; // ── ADDED FOR FIREBASE ALARM CLOCK ──
+
 import '../../shared/widgets/search_bar.dart';
 import '../../screens/profile_page.dart';
 import '../../screens/store_page.dart';
@@ -26,17 +28,33 @@ class _HomePageState extends State<HomePage> {
   int _bannerPage = 0;
   final CartProvider _cart = CartProvider();
 
-  User? get _user => FirebaseAuth.instance.currentUser;
+  // ── NEW: Listeners and State ──
+  StreamSubscription<User?>? _authSubscription;
+  String _userName = "there";
+  List<Map<String, dynamic>> _nearMeStores = [];
+  bool _isLoadingStores = true;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
     _cart.addListener(_onCartChanged);
+    
+    // ── THE FIX: Wait for Firebase to securely load the user from memory ──
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null && mounted) {
+        // Now that we are 100% sure the user is loaded, fetch the data!
+        _loadInitialData(user.uid);
+      } else if (user == null && mounted) {
+        // Handle case where user might be completely logged out
+        setState(() => _isLoadingStores = false);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _authSubscription?.cancel(); // Always clean up your listeners!
     _cart.removeListener(_onCartChanged);
     _pageController.dispose();
     super.dispose();
@@ -46,7 +64,60 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() {});
   }
 
-  // Categories remain static as they are structural
+  // ── NEW: One-Time Fetch Function that runs exactly when the user is ready ──
+  Future<void> _loadInitialData(String uid) async {
+    if (!mounted) return;
+    setState(() => _isLoadingStores = true); // Ensure loading spinner is showing
+
+    try {
+      // 1. Fetch User Data (Name and Location)
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      
+      double userLat = 26.0667; 
+      double userLon = 50.5577;
+
+      if (userDoc.exists && userDoc.data() != null) {
+        final userData = userDoc.data()!;
+        _userName = userData['firstName'] ?? "there";
+        userLat = (userData['latitude'] ?? userLat).toDouble();
+        userLon = (userData['longitude'] ?? userLon).toDouble();
+      }
+
+      // 2. Fetch Stores exactly once
+      final storeSnap = await FirebaseFirestore.instance.collection('stores').get();
+      List<Map<String, dynamic>> sortedStores = [];
+
+      for (var doc in storeSnap.docs) {
+        final data = doc.data();
+        final storeLat = (data['latitude'] ?? 0.0).toDouble();
+        final storeLon = (data['longitude'] ?? 0.0).toDouble();
+        
+        final calculatedDistance = _calculateDistance(userLat, userLon, storeLat, storeLon);
+        
+        data['realDistanceKm'] = calculatedDistance;
+        data['docId'] = doc.id;
+        
+        sortedStores.add(data);
+      }
+
+      // Sort the list based on distance (lowest first)
+      sortedStores.sort((a, b) => (a['realDistanceKm'] as double).compareTo(b['realDistanceKm'] as double));
+
+      // 3. Update the UI permanently 
+      if (mounted) {
+        setState(() {
+          _nearMeStores = sortedStores;
+          _isLoadingStores = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading home page data: $e");
+      if (mounted) {
+        setState(() => _isLoadingStores = false);
+      }
+    }
+  }
+
   static const List<_Category> _categories = [
     _Category('Sweet &\nBaking', 'assets/images/category/Baking.png'),
     _Category('Gifts', 'assets/images/category/gift.png'),
@@ -62,9 +133,8 @@ class _HomePageState extends State<HomePage> {
     const TopRatedPage(),
   ];
 
-  // ── NEW: HAVERSINE DISTANCE CALCULATOR ──
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const R = 6371; // Radius of the earth in km
+    const R = 6371; 
     final dLat = (lat2 - lat1) * math.pi / 180;
     final dLon = (lon2 - lon1) * math.pi / 180;
     
@@ -130,25 +200,14 @@ class _HomePageState extends State<HomePage> {
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 4),
-                      // DYNAMIC GREETING
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: FirebaseFirestore.instance.collection('users').doc(_user?.uid).snapshots(),
-                        builder: (context, snapshot) {
-                          String name = "there";
-                          if (snapshot.hasData && snapshot.data!.exists) {
-                            var data = snapshot.data!.data() as Map<String, dynamic>;
-                            name = data['firstName'] ?? "there";
-                          }
-                          return Text(
-                            'Welcome back, $name',
-                            style: const TextStyle(
-                              fontFamily: 'SF Pro Display',
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          );
-                        },
+                      Text(
+                        'Welcome back, $_userName', // Guaranteed to only draw once data is ready
+                        style: const TextStyle(
+                          fontFamily: 'SF Pro Display',
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
                       ),
                     ],
                   ),
@@ -344,7 +403,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ── UPDATED: SMART DISTANCE SORTING ──
   Widget _buildNearMe() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,75 +417,24 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 16),
         SizedBox(
           height: 150,
-          child: StreamBuilder<DocumentSnapshot>(
-            // First, we need the user's location
-            stream: FirebaseFirestore.instance.collection('users').doc(_user?.uid).snapshots(),
-            builder: (context, userSnapshot) {
-              if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
-              }
-
-              // Default to center of Bahrain if location missing
-              double userLat = 26.0667; 
-              double userLon = 50.5577;
-
-              if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                userLat = (userData['latitude'] ?? userLat).toDouble();
-                userLon = (userData['longitude'] ?? userLon).toDouble();
-              }
-
-              // Now fetch all the stores
-              return StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('stores').snapshots(),
-                builder: (context, storeSnapshot) {
-                  if (storeSnapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
-                  }
-                  if (!storeSnapshot.hasData || storeSnapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text("No stores found", style: TextStyle(color: Color(0xFF9F9F9F))));
-                  }
-
-                  // Calculate distance for each store and pair it with its document data
-                  List<Map<String, dynamic>> sortedStores = [];
-                  
-                  for (var doc in storeSnapshot.data!.docs) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final storeLat = (data['latitude'] ?? 0.0).toDouble();
-                    final storeLon = (data['longitude'] ?? 0.0).toDouble();
-                    
-                    // Calculate real distance
-                    final calculatedDistance = _calculateDistance(userLat, userLon, storeLat, storeLon);
-                    
-                    // We pass the calculated distance back into the data map so we can read it later
-                    data['realDistanceKm'] = calculatedDistance;
-                    data['docId'] = doc.id;
-                    
-                    sortedStores.add(data);
-                  }
-
-                  // Sort the list based on the new realDistanceKm we just calculated (lowest first)
-                  sortedStores.sort((a, b) => (a['realDistanceKm'] as double).compareTo(b['realDistanceKm'] as double));
-
-                  return ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    itemCount: sortedStores.length,
-                    itemBuilder: (context, index) {
-                      return _buildStoreCardFromFirebase(sortedStores[index], sortedStores[index]['docId']);
-                    },
-                  );
-                },
-              );
-            },
-          ),
+          child: _isLoadingStores
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)))
+              : _nearMeStores.isEmpty
+                  ? const Center(child: Text("No stores found", style: TextStyle(color: Color(0xFF9F9F9F))))
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      itemCount: _nearMeStores.length,
+                      itemBuilder: (context, index) {
+                        return _buildStoreCardFromFirebase(_nearMeStores[index], _nearMeStores[index]['docId']);
+                      },
+                    ),
         ),
       ],
     );
   }
 
   Widget _buildStoreCardFromFirebase(Map<String, dynamic> data, String docId) {
-    // We grab the dynamically calculated distance!
     final distance = data['realDistanceKm'] ?? 0.0;
 
     final firebaseStore = Store(
@@ -438,7 +445,7 @@ class _HomePageState extends State<HomePage> {
       logoPath: data['logoUrl'] ?? 'https://via.placeholder.com/80',
       rating: (data['rating'] ?? 0.0).toDouble(),
       category: data['category'] ?? 'General',
-      distanceKm: distance, // This is now completely accurate
+      distanceKm: distance, 
       products: [], 
     );
 

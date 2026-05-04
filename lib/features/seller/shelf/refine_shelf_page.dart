@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -66,51 +69,95 @@ class _RefineShelfPageState extends State<RefineShelfPage> {
     });
   }
 
+  // ── THE FIREBASE MAGIC HAPPENS HERE ──
   Future<void> _handleContinue() async {
     if (_submitting) return;
-
-    final sizes = _sizeRows
-        .where((r) =>
-            r.sizeController.text.trim().isNotEmpty &&
-            double.tryParse(r.priceController.text.trim()) != null)
-        .map((r) => SizeOption(
-              size: r.sizeController.text.trim(),
-              priceModifier: double.parse(r.priceController.text.trim()),
-            ))
-        .toList();
-
-    final addOns = _addOnRows
-        .where((r) =>
-            r.nameController.text.trim().isNotEmpty &&
-            double.tryParse(r.priceController.text.trim()) != null)
-        .map((r) => AddOnOption(
-              name: r.nameController.text.trim(),
-              priceModifier: double.parse(r.priceController.text.trim()),
-            ))
-        .toList();
-
-    final finalShelf = widget.draft.copyWith(
-      ingredients: _ingredients,
-      sizes: sizes,
-      addOns: addOns,
-    );
-
     setState(() => _submitting = true);
 
-    if (widget.isEditing) {
-      await ShelfService().updateShelf(finalShelf);
-      if (!mounted) return;
-      Navigator.pop(context, true);
-      return;
+    try {
+      final sizes = _sizeRows
+          .where((r) =>
+              r.sizeController.text.trim().isNotEmpty &&
+              double.tryParse(r.priceController.text.trim()) != null)
+          .map((r) => SizeOption(
+                size: r.sizeController.text.trim(),
+                priceModifier: double.parse(r.priceController.text.trim()),
+              ))
+          .toList();
+
+      final addOns = _addOnRows
+          .where((r) =>
+              r.nameController.text.trim().isNotEmpty &&
+              double.tryParse(r.priceController.text.trim()) != null)
+          .map((r) => AddOnOption(
+                name: r.nameController.text.trim(),
+                priceModifier: double.parse(r.priceController.text.trim()),
+              ))
+          .toList();
+
+      // 1. Get the current user's Store ID
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final storeSnap = await FirebaseFirestore.instance
+          .collection('stores')
+          .where('ownerId', isEqualTo: uid)
+          .limit(1)
+          .get();
+
+      if (storeSnap.docs.isEmpty) {
+        throw Exception("Could not find your store! Please create a store first.");
+      }
+      final storeId = storeSnap.docs.first.id;
+
+      // 2. Upload any new images to Firebase Storage
+      List<String> finalPhotoUrls = [];
+      for (String path in widget.draft.photoPaths) {
+        if (path.startsWith('http')) {
+          // It's already a Firebase URL (likely from editing an old product)
+          finalPhotoUrls.add(path);
+        } else {
+          // It's a local file on the phone, upload it!
+          String downloadUrl = await ShelfService().uploadShelfImage(File(path));
+          finalPhotoUrls.add(downloadUrl);
+        }
+      }
+
+      // 3. Put all the pieces together into the final model
+      final finalShelf = widget.draft.copyWith(
+        storeId: storeId, // Injecting the real Store ID
+        photoPaths: finalPhotoUrls, // Injecting the live URLs
+        ingredients: _ingredients,
+        sizes: sizes,
+        addOns: addOns,
+      );
+
+      // 4. Save to Firestore
+      if (widget.isEditing) {
+        await ShelfService().updateShelf(finalShelf);
+        if (!mounted) return;
+        Navigator.pop(context, true);
+      } else {
+        await ShelfService().createShelf(finalShelf);
+        if (!mounted) return;
+        
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ShelfSuccessPage()),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
-
-    await ShelfService().createShelf(finalShelf);
-    if (!mounted) return;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const ShelfSuccessPage()),
-    );
   }
 
   @override
