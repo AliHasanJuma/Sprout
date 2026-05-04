@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
-import 'package:firebase_auth/firebase_auth.dart'; // Added Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'dart:async'; // ── ADDED FOR STREAM SUBSCRIPTION ──
 import 'inner_chat_page.dart';
 
 class ChatsPage extends StatefulWidget {
@@ -10,10 +11,74 @@ class ChatsPage extends StatefulWidget {
   State<ChatsPage> createState() => _ChatsPageState();
 }
 
-class _ChatsPageState extends State<ChatsPage> {
-  User? get _user => FirebaseAuth.instance.currentUser;
+// ── 1. ADDED MEMORY LOCK MIXIN ──
+class _ChatsPageState extends State<ChatsPage> with AutomaticKeepAliveClientMixin {
+  
+  // ── 2. KEEP ALIVE SET TO TRUE ──
+  @override
+  bool get wantKeepAlive => true;
 
-  // Helper function to format the Firestore Timestamp into a readable time (e.g., "10:30 AM" or "2 days ago")
+  User? get _user => FirebaseAuth.instance.currentUser;
+  
+  // ── NEW: State variables to hold data securely ──
+  StreamSubscription<QuerySnapshot>? _chatSubscription;
+  List<QueryDocumentSnapshot> _chatDocs = [];
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenToChats(); // Start the background listener
+  }
+
+  @override
+  void dispose() {
+    _chatSubscription?.cancel(); // Always clean up listeners!
+    super.dispose();
+  }
+
+  // ── 3. THE HYBRID FETCH: Background Real-time Listener ──
+  void _listenToChats() {
+    final uid = _user?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    _chatSubscription = FirebaseFirestore.instance
+        .collection('chats')
+        .where('buyerId', isEqualTo: uid)
+        .orderBy('lastMessageTime', descending: true)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (mounted) {
+          setState(() {
+            _chatDocs = snapshot.docs;
+            _isLoading = false;
+            _hasError = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _isLoading = false;
+          });
+        }
+      },
+    );
+  }
+
+  // ── 4. PULL-TO-REFRESH HANDLER ──
+  Future<void> _handleRefresh() async {
+    // Because the stream is already keeping data perfectly up-to-date, 
+    // we just add a small delay to give the user the visual satisfaction of a refresh!
+    await Future.delayed(const Duration(milliseconds: 600));
+  }
+
   String _formatTime(Timestamp? timestamp) {
     if (timestamp == null) return '';
     final dateTime = timestamp.toDate();
@@ -31,7 +96,6 @@ class _ChatsPageState extends State<ChatsPage> {
     }
   }
 
-  // Helper to generate initials for the avatar fallback
   String _getInitials(String name) {
     if (name.isEmpty) return '??';
     final parts = name.split(' ');
@@ -156,13 +220,8 @@ class _ChatsPageState extends State<ChatsPage> {
 
   Future<void> _deleteChat(String chatId) async {
     try {
-      // 1. Delete the main chat document
       await FirebaseFirestore.instance.collection('chats').doc(chatId).delete();
       
-      // Note: In a production app, you would also want to delete all documents 
-      // inside the 'messages' sub-collection. For this prototype, deleting the parent 
-      // document hides it from the list effectively.
-
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -183,91 +242,90 @@ class _ChatsPageState extends State<ChatsPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ── REQUIRED FOR KEEPALIVE ──
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(left: 24, top: 24, bottom: 8),
-              child: Text(
-                'Chats',
-                style: TextStyle(
-                  fontFamily: 'SF Pro Display',
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+        // ── 5. WRAPPED IN REFRESH INDICATOR ──
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: const Color(0xFF003E3B),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 24, top: 24, bottom: 8),
+                child: Text(
+                  'Chats',
+                  style: TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
               ),
-            ),
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
-            
-            // ── DYNAMIC FIRESTORE QUERY ──
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('chats')
-                    .where('buyerId', isEqualTo: _user?.uid) // Only show THIS user's chats
-                    .orderBy('lastMessageTime', descending: true) // Newest at the top
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
-                  }
+              const Divider(height: 1, color: Color(0xFFEEEEEE)),
+              
+              // ── DYNAMIC UI BASED ON LOCAL STATE ──
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)))
+                    : _hasError
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Container(
+                              height: MediaQuery.of(context).size.height * 0.6,
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'Error loading chats.\nPlease check database indexes.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontFamily: 'SF Pro Display', color: Colors.red),
+                              ),
+                            ),
+                          )
+                        : _chatDocs.isEmpty
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Container(
+                                  height: MediaQuery.of(context).size.height * 0.6,
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'No active chats.',
+                                    style: TextStyle(fontFamily: 'SF Pro Display', color: Color(0xFF9F9F9F)),
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                itemCount: _chatDocs.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                                itemBuilder: (context, index) {
+                                  final data = _chatDocs[index].data() as Map<String, dynamic>;
+                                  final chatId = _chatDocs[index].id;
 
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        'Error loading chats.\nPlease check database indexes.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontFamily: 'SF Pro Display', color: Colors.red),
-                      ),
-                    );
-                  }
-
-                  final chatDocs = snapshot.data?.docs ?? [];
-
-                  if (chatDocs.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No active chats.',
-                        style: TextStyle(fontFamily: 'SF Pro Display', color: Color(0xFF9F9F9F)),
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: chatDocs.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                    itemBuilder: (context, index) {
-                      final data = chatDocs[index].data() as Map<String, dynamic>;
-                      final chatId = chatDocs[index].id;
-
-                      return Dismissible(
-                        key: ValueKey(chatId),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          color: Colors.red,
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 24),
-                          child: const Icon(Icons.delete,
-                              color: Colors.white, size: 28),
-                        ),
-                        confirmDismiss: (_) async {
-                          _confirmDelete(chatId, data['storeName'] ?? 'Unknown');
-                          return false; // We handle deletion manually so it doesn't swipe away instantly
-                        },
-                        child: _buildChatRow(context, data, chatId),
-                      );
-                    },
-                  );
-                },
+                                  return Dismissible(
+                                    key: ValueKey(chatId),
+                                    direction: DismissDirection.endToStart,
+                                    background: Container(
+                                      color: Colors.red,
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 24),
+                                      child: const Icon(Icons.delete, color: Colors.white, size: 28),
+                                    ),
+                                    confirmDismiss: (_) async {
+                                      _confirmDelete(chatId, data['storeName'] ?? 'Unknown');
+                                      return false; 
+                                    },
+                                    child: _buildChatRow(context, data, chatId),
+                                  );
+                                },
+                              ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -280,7 +338,7 @@ class _ChatsPageState extends State<ChatsPage> {
     final timeAgo = _formatTime(data['lastMessageTime'] as Timestamp?);
     final unreadCount = data['unreadCount'] ?? 0;
     final storeId = data['storeId'] ?? '';
-    final isOnline = data['isOnline'] ?? false; // Optional field in DB
+    final isOnline = data['isOnline'] ?? false; 
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -304,7 +362,6 @@ class _ChatsPageState extends State<ChatsPage> {
               height: 52,
               child: Stack(
                 children: [
-                  // Fallback to Initials if Image is empty/fails
                   CircleAvatar(
                     radius: 26,
                     backgroundColor: const Color(0xFFCDEB45),

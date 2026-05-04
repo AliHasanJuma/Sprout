@@ -15,8 +15,13 @@ class ShelvesTab extends StatefulWidget {
   State<ShelvesTab> createState() => _ShelvesTabState();
 }
 
-class _ShelvesTabState extends State<ShelvesTab> {
+// ── 1. ADDED MIXIN HERE ──
+class _ShelvesTabState extends State<ShelvesTab> with AutomaticKeepAliveClientMixin {
   late Future<StoreModel?> _future;
+
+  // ── 2. LOCK THE TAB IN MEMORY ──
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -32,6 +37,8 @@ class _ShelvesTabState extends State<ShelvesTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ── REQUIRED FOR KEEPALIVE ──
+
     return NotificationListener<SellerReloadNotification>(
       onNotification: (_) {
         _reload();

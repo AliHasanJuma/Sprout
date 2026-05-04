@@ -18,9 +18,15 @@ class SellerStorePage extends StatefulWidget {
   State<SellerStorePage> createState() => _SellerStorePageState();
 }
 
+// ── 1. ADDED AUTOMATICKEEPALIVECLIENTMIXIN ──
 class _SellerStorePageState extends State<SellerStorePage>
-    with TickerProviderStateMixin {
-  int _expandedIndex = -1; // -1 means none expanded
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  
+  // ── 2. LOCK IN MEMORY ──
+  @override
+  bool get wantKeepAlive => true;
+
+  int _expandedIndex = -1; 
   List<ShelfModel> _shelves = [];
   bool _loading = true;
 
@@ -38,6 +44,15 @@ class _SellerStorePageState extends State<SellerStorePage>
       _shelves = shelves;
       _loading = false;
     });
+  }
+
+  // ── NEW: HYBRID REFRESH ──
+  // This refreshes the shelves AND tells the parent tab to refresh the store details
+  Future<void> _handleRefresh() async {
+    await _loadShelves();
+    if (mounted) {
+      SellerReloadNotification().dispatch(context);
+    }
   }
 
   Future<void> _openCreateShelf() async {
@@ -67,7 +82,6 @@ class _SellerStorePageState extends State<SellerStorePage>
     _loadShelves();
   }
 
-  // Helper widget to safely load either local files or Firebase URLs
   Widget _buildSafeImage(String path, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
     if (path.startsWith('http')) {
       return Image.network(
@@ -89,72 +103,79 @@ class _SellerStorePageState extends State<SellerStorePage>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ── REQUIRED FOR KEEPALIVE ──
     final store = widget.store;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 32),
-        child: Column(
-          children: [
-            _buildHeader(store),
-            const SizedBox(height: 16),
-            Text(
-              store.name,
-              style: const TextStyle(
-                fontFamily: 'SF Pro Display',
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              store.bio,
-              style: const TextStyle(
-                fontFamily: 'SF Pro Display',
-                fontSize: 14,
-                color: Color(0xFF9F9F9F),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
-            const SizedBox(height: 16),
-            _buildInfoRow(store),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
-            const SizedBox(height: 16),
-
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF003E3B)),
+      // ── 3. ADDED PULL-TO-REFRESH ──
+      body: RefreshIndicator(
+        onRefresh: _handleRefresh,
+        color: const Color(0xFF003E3B),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(), // Ensures you can always pull down
+          padding: const EdgeInsets.only(bottom: 32),
+          child: Column(
+            children: [
+              _buildHeader(store),
+              const SizedBox(height: 16),
+              Text(
+                store.name,
+                style: const TextStyle(
+                  fontFamily: 'SF Pro Display',
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
                 ),
-              )
-            else if (_shelves.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(
-                  child: Text(
-                    'No products available yet.',
-                    style: TextStyle(
-                      color: Color(0xFF9F9F9F),
-                      fontFamily: 'SF Pro Display',
+              ),
+              const SizedBox(height: 6),
+              Text(
+                store.bio,
+                style: const TextStyle(
+                  fontFamily: 'SF Pro Display',
+                  fontSize: 14,
+                  color: Color(0xFF9F9F9F),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: Color(0xFFEEEEEE)),
+              const SizedBox(height: 16),
+              _buildInfoRow(store),
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: Color(0xFFEEEEEE)),
+              const SizedBox(height: 16),
+
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF003E3B)),
+                  ),
+                )
+              else if (_shelves.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text(
+                      'No products available yet.',
+                      style: TextStyle(
+                        color: Color(0xFF9F9F9F),
+                        fontFamily: 'SF Pro Display',
+                      ),
                     ),
                   ),
+                )
+              else
+                Column(
+                  children: List.generate(_shelves.length, (index) {
+                    return _buildExpandableShelfCard(_shelves[index], index);
+                  }),
                 ),
-              )
-            else
-              Column(
-                children: List.generate(_shelves.length, (index) {
-                  return _buildExpandableShelfCard(_shelves[index], index);
-                }),
-              ),
 
-            const SizedBox(height: 32),
-          ],
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
@@ -177,7 +198,6 @@ class _SellerStorePageState extends State<SellerStorePage>
             ),
           ),
 
-          // ── SELLER: `+` button replaces buyer's back arrow ──
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             left: 16,
@@ -202,7 +222,6 @@ class _SellerStorePageState extends State<SellerStorePage>
             ),
           ),
 
-          // ── SELLER: `…` button replaces buyer's favourite heart ──
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             right: 16,
@@ -254,7 +273,6 @@ class _SellerStorePageState extends State<SellerStorePage>
   }
 
   Widget _buildInfoRow(StoreModel store) {
-    // TODO: wire Views/Rating/Orders to Firestore.
     const int views = 84;
     const double rating = 3.5;
     const int orders = 5;
@@ -448,7 +466,6 @@ class _SellerStorePageState extends State<SellerStorePage>
                         ],
                       ),
                       const SizedBox(height: 6),
-                      // ── UPGRADE: Properly display "Starting at" if required ──
                       Text(
                         shelf.priceType == PriceType.startingAt 
                             ? 'Starting at ${shelf.price} BD'

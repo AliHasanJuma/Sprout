@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
-import 'package:firebase_auth/firebase_auth.dart'; // Added Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; 
 import '../data/temp_data.dart';
 import 'store_page.dart';
 
@@ -11,63 +11,118 @@ class FavouritePage extends StatefulWidget {
   State<FavouritePage> createState() => FavouritePageState();
 }
 
-class FavouritePageState extends State<FavouritePage> {
-  // We no longer need the local refresh() because StreamBuilder handles it automatically!
+// ── 1. ADD THE MIXIN ──
+class FavouritePageState extends State<FavouritePage> with AutomaticKeepAliveClientMixin {
+  
+  // ── 2. LOCK THE PAGE IN MEMORY ──
+  @override
+  bool get wantKeepAlive => true; 
+
+  bool _isLoading = true;
+  List<QueryDocumentSnapshot> _favouriteStores = [];
+  String? _uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _uid = FirebaseAuth.instance.currentUser?.uid;
+    _loadFavourites(); // Fetch data once when the tab is first opened
+  }
+
+  // ── 3. MANUAL FETCH FOR PULL-TO-REFRESH ──
+  Future<void> _loadFavourites() async {
+    if (_uid == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      // 1. Get user's favourite IDs
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_uid).get();
+      final userData = userDoc.data() ?? {};
+      final List<dynamic> favIds = userData['favouriteStoreIds'] ?? [];
+
+      if (favIds.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _favouriteStores = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      // 2. Fetch Store details for those IDs
+      final storeSnap = await FirebaseFirestore.instance
+          .collection('stores')
+          .where(FieldPath.documentId, whereIn: favIds)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _favouriteStores = storeSnap.docs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading favourites: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // ── 4. INSTANT UI UPDATE WHEN REMOVING FAVOURITE ──
+  Future<void> _removeFavourite(String storeId) async {
+    if (_uid == null) return;
+
+    // Remove from the screen instantly to feel snappy!
+    setState(() {
+      _favouriteStores.removeWhere((doc) => doc.id == storeId);
+    });
+
+    // Update Firebase silently in the background
+    await FirebaseFirestore.instance.collection('users').doc(_uid).update({
+      'favouriteStoreIds': FieldValue.arrayRemove([storeId])
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    super.build(context); // ── REQUIRED FOR KEEPALIVE ──
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        // ── STEP 1: Listen to User's ID list ──
-        child: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
-          builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
-            }
-
-            final userData = userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
-            final List<dynamic> favIds = userData['favouriteStoreIds'] ?? [];
-
-            // If the array is empty (or doesn't exist yet)
-            if (favIds.isEmpty) {
-              return _buildEmptyState();
-            }
-
-            // ── STEP 2: Fetch Store details for those IDs ──
-            return FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('stores')
-                  .where(FieldPath.documentId, whereIn: favIds)
-                  .get(),
-              builder: (context, storeSnapshot) {
-                if (storeSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
-                }
-                
-                final stores = storeSnapshot.data?.docs ?? [];
-
-                // Fallback just in case IDs exist but the store documents were deleted
-                if (stores.isEmpty) {
-                  return _buildEmptyState();
-                }
-
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  itemCount: stores.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                  itemBuilder: (context, index) {
-                    final data = stores[index].data() as Map<String, dynamic>;
-                    final storeId = stores[index].id;
-                    return _buildFavRow(context, data, storeId, uid!);
-                  },
-                );
-              },
-            );
-          },
+        // ── 5. WRAP WITH REFRESH INDICATOR ──
+        child: RefreshIndicator(
+          onRefresh: _loadFavourites,
+          color: const Color(0xFF003E3B),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)))
+              : _favouriteStores.isEmpty
+                  // We wrap the empty state in a scroll view so you can still pull down to refresh even when empty!
+                  ? SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Container(
+                        height: MediaQuery.of(context).size.height * 0.7,
+                        alignment: Alignment.center,
+                        child: _buildEmptyState(),
+                      ),
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      itemCount: _favouriteStores.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                      itemBuilder: (context, index) {
+                        final data = _favouriteStores[index].data() as Map<String, dynamic>;
+                        final storeId = _favouriteStores[index].id;
+                        return _buildFavRow(context, data, storeId);
+                      },
+                    ),
         ),
       ),
     );
@@ -80,7 +135,6 @@ class FavouritePageState extends State<FavouritePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Heart + sad face illustration
             Image.asset(
               'assets/icons/MG_favourite_list.png',
               width: 120,
@@ -118,8 +172,7 @@ class FavouritePageState extends State<FavouritePage> {
     );
   }
 
-  Widget _buildFavRow(BuildContext context, Map<String, dynamic> data, String storeId, String uid) {
-    // Map Firebase data to your Store model so StorePage works correctly
+  Widget _buildFavRow(BuildContext context, Map<String, dynamic> data, String storeId) {
     final store = Store(
       id: storeId,
       name: data['name'] ?? '',
@@ -129,7 +182,7 @@ class FavouritePageState extends State<FavouritePage> {
       rating: (data['rating'] ?? 0.0).toDouble(),
       category: data['category'] ?? 'General',
       distanceKm: (data['distanceKm'] ?? 0.0).toDouble(),
-      products: [], // Will be loaded dynamically in StorePage
+      products: [], 
     );
 
     return GestureDetector(
@@ -143,7 +196,6 @@ class FavouritePageState extends State<FavouritePage> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            // Store image (Using Network Image for Firebase)
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
@@ -162,7 +214,6 @@ class FavouritePageState extends State<FavouritePage> {
               ),
             ),
             const SizedBox(width: 16),
-            // Store info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,15 +232,10 @@ class FavouritePageState extends State<FavouritePage> {
                 ],
               ),
             ),
-            // Remove heart button (Updates Firebase)
+            // Call our new snappier remove function!
             IconButton(
               icon: const Icon(Icons.favorite, color: Color(0xFF003E3B), size: 24),
-              onPressed: () async {
-                // Remove the store ID from the user's array
-                await FirebaseFirestore.instance.collection('users').doc(uid).update({
-                  'favouriteStoreIds': FieldValue.arrayRemove([storeId])
-                });
-              },
+              onPressed: () => _removeFavourite(storeId), 
             ),
           ],
         ),

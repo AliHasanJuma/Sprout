@@ -36,12 +36,24 @@ class _InnerChatPageState extends State<InnerChatPage> {
   Map<String, dynamic>? _activeOrder;
   bool _isLoadingOrder = true;
   
+  // ── NEW: Lock the live chat stream in memory ──
+  late Stream<QuerySnapshot> _messagesStream;
+  
   User? get _user => FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
     _checkForActiveOrder();
+
+    // ── THE FIX: Initialize the stream exactly ONCE when the page opens ──
+    // Now, opening the keyboard won't destroy and restart your chat connection!
+    _messagesStream = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots();
 
     if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -67,7 +79,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
           .limit(1)
           .get();
       
-      if (querySnapshot.docs.isNotEmpty) {
+      if (mounted && querySnapshot.docs.isNotEmpty) {
         final doc = querySnapshot.docs.first;
         setState(() {
           _activeOrder = doc.data();
@@ -75,7 +87,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
           _hasActiveOrder = true;
           _isLoadingOrder = false;
         });
-      } else {
+      } else if (mounted) {
         setState(() {
           _hasActiveOrder = false;
           _isLoadingOrder = false;
@@ -83,9 +95,11 @@ class _InnerChatPageState extends State<InnerChatPage> {
       }
     } catch (e) {
       print('Error checking orders: $e');
-      setState(() {
-        _isLoadingOrder = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingOrder = false;
+        });
+      }
     }
   }
 
@@ -142,40 +156,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
       'lastMessage': text,
       'lastMessageTime': timestamp,
     }, SetOptions(merge: true));
-  }
-
-  Future<void> _fetchStoreAndNavigate(Widget Function(Store) buildTargetPage) async {
-    showDialog(
-      context: context, 
-      barrierDismissible: false, 
-      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B))),
-    );
-
-    try {
-      final doc = await FirebaseFirestore.instance.collection('stores').doc(widget.storeId).get();
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      if (doc.exists) {
-        final data = doc.data()!;
-        final store = Store(
-          id: doc.id,
-          name: data['name'] ?? 'Unknown',
-          description: data['description'] ?? '',
-          imagePath: data['imageUrl'] ?? '',
-          logoPath: data['logoUrl'] ?? '',
-          rating: (data['rating'] ?? 0.0).toDouble(),
-          category: data['category'] ?? '',
-          distanceKm: (data['distanceKm'] ?? 0.0).toDouble(),
-          products: [],
-        );
-        Navigator.push(context, MaterialPageRoute(builder: (_) => buildTargetPage(store)));
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load store: $e')));
-    }
   }
 
   void _showReportSheet() {
@@ -326,12 +306,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
             // Messages
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('chats')
-                    .doc(widget.chatId)
-                    .collection('messages')
-                    .orderBy('timestamp', descending: false)
-                    .snapshots(),
+                stream: _messagesStream, // ── UPGRADED: Reading from the locked memory stream! ──
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
