@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../shared/widgets/app_top_bar.dart';
 import '../../shared/widgets/custom_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'all_set.dart'; // Add this import
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ── ADDED IMPORT ──
+import 'all_set.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String firstName;
@@ -11,6 +14,9 @@ class VerificationScreen extends StatefulWidget {
   final String? gender;
   final String phoneNumber;
   final String verificationId;
+  final String? location;
+  final double? latitude;
+  final double? longitude;
 
   const VerificationScreen({
     super.key,
@@ -20,6 +26,9 @@ class VerificationScreen extends StatefulWidget {
     this.gender,
     required this.phoneNumber,
     required this.verificationId,
+    this.location,
+    this.latitude,
+    this.longitude,
   });
 
   @override
@@ -29,115 +38,71 @@ class VerificationScreen extends StatefulWidget {
 class _VerificationScreenState extends State<VerificationScreen> {
   final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
-
-  @override
-  void initState() {
-    super.initState();
-    for (var node in _focusNodes) {
-      node.addListener(() {
-        setState(() {});
-      });
-    }
-  }
+  bool _isVerifying = false;
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-    for (var node in _focusNodes) {
-      node.dispose();
-    }
+    for (var c in _controllers) c.dispose();
+    for (var n in _focusNodes) n.dispose();
     super.dispose();
   }
 
-  void _onChanged(String value, int index) {
-    if (value.length == 1) {
-      // Move to next field
-      if (index < 5) {
-        _focusNodes[index + 1].requestFocus();
-      }
-    } else if (value.isEmpty) {
-      // Move to previous field on delete
-      if (index > 0) {
-        _focusNodes[index - 1].requestFocus();
-      }
-    }
+  Future<void> _saveUserToFirestore(String uid) async {
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'uid': uid,
+      'firstName': widget.firstName,
+      'lastName': widget.lastName,
+      'email': widget.email,
+      'gender': widget.gender,
+      'phoneNumber': widget.phoneNumber,
+      'location': widget.location,
+      'latitude': widget.latitude,
+      'longitude': widget.longitude,
+      'preferredLanguage': 'en', // Cloud memory set to English
+      'createdAt': FieldValue.serverTimestamp(),
+      'role': 'buyer',
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Image.asset(
-            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
-            width: 24,
-            height: 24,
-            color: const Color(0xFF003E3B),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Verifying',
-          style: TextStyle(
-            fontFamily: 'SF Pro Display',
-            fontWeight: FontWeight.w400,
-            color: AppColors.secondary,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: 'Verifying'),
       body: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 20),
-
-            // Big bold text
+            const SizedBox(height: 4),
             const Text(
-              'Enter Verification Code',
+              'Enter Verification code',
               style: TextStyle(
                 fontFamily: 'SF Pro Display',
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
                 color: AppColors.secondary,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
               ),
             ),
-
-            const SizedBox(height: 4),
-
-            // Smaller text with phone number
+            const SizedBox(height: 8),
             Text(
               'We sent you a code via SMS.',
               style: TextStyle(
-                fontSize: 14,
                 color: AppColors.secondary.withValues(alpha: 0.7),
+                fontSize: 14,
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // Six OTP boxes
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(6, (index) {
                 return Container(
-                  width: 50,
-                  height: 60,
+                  width: 45,
+                  height: 55,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _focusNodes[index].hasFocus
-                          ? const Color(0xFFDAF64F)
-                          : const Color(0xFFDEDEDE),
-                      width: 1,
-                    ),
+                    border: Border.all(color: const Color(0xFFDEDEDE)),
                   ),
                   child: TextField(
                     controller: _controllers[index],
@@ -146,45 +111,36 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     keyboardType: TextInputType.number,
                     maxLength: 1,
                     style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF003E3B),
+                      color: AppColors.secondary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
-                    decoration: const InputDecoration(
-                      counterText: '',
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (value) => _onChanged(value, index),
+                    decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+                    onChanged: (v) {
+                      if (v.isNotEmpty && index < 5) _focusNodes[index + 1].requestFocus();
+                    },
                   ),
                 );
               }),
             ),
-
-            const SizedBox(height: 30),
-
-            // Resend code text
-            const Text(
-              'Resend code?',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.secondary,
-                decoration: TextDecoration.underline,
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () {},
+              child: const Text(
+                'Resend code?',
+                style: TextStyle(
+                  color: AppColors.secondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-
             const SizedBox(height: 48),
-
-            // Continue button
             CustomButton(
-              text: 'Continue',
-              onPressed: () async {
-                String code = '';
-                for (var controller in _controllers) {
-                  code += controller.text;
-                }
-
-                // Capture before any async gap
+              text: _isVerifying ? 'Verifying...' : 'Continue',
+              onPressed: _isVerifying ? null : () async {
+                setState(() => _isVerifying = true);
+                String code = _controllers.map((e) => e.text).join();
                 final nav = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
 
@@ -194,34 +150,27 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     smsCode: code,
                   );
 
-                  await FirebaseAuth.instance.signInWithCredential(credential);
+                  UserCredential userCred = await FirebaseAuth.instance.signInWithCredential(credential);
 
-                  // Save display name so HomePage can greet the user by name
-                  final user = FirebaseAuth.instance.currentUser;
-                  await user?.updateDisplayName(
-                    '${widget.firstName} ${widget.lastName}',
-                  );
+                  if (userCred.user != null) {
+                    await _saveUserToFirestore(userCred.user!.uid);
+                    await userCred.user!.updateDisplayName('${widget.firstName} ${widget.lastName}');
 
-                  if (!mounted) return;
-                  nav.pushReplacement(
-                    MaterialPageRoute(
-                      builder: (_) => AllSetScreen(
-                        firstName: widget.firstName,
-                        lastName: widget.lastName,
-                      ),
-                    ),
-                  );
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('language', 'en');
+
+                    nav.pushReplacement(MaterialPageRoute(builder: (_) => AllSetScreen(
+                      firstName: widget.firstName,
+                      lastName: widget.lastName,
+                    )));
+                  }
                 } catch (e) {
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Invalid verification code')),
-                  );
+                  messenger.showSnackBar(const SnackBar(content: Text('Incorrect code. Please try again.')));
+                } finally {
+                  if (mounted) setState(() => _isVerifying = false);
                 }
               },
-              backgroundColor: AppColors.primary,
-              textColor: Colors.black,
             ),
-
-            const SizedBox(height: 20),
           ],
         ),
       ),

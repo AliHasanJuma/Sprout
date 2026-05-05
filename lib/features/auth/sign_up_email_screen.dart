@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../shared/widgets/app_top_bar.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'login_screen.dart';
@@ -91,6 +92,9 @@ class _SignUpEmailScreenState extends State<SignUpEmailScreen> {
             lastName: widget.lastName,
             email: email,
             gender: widget.gender,
+            location: widget.location,   // Added
+            latitude: widget.latitude,   // Added
+            longitude: widget.longitude, // Added
           ),
         ),
       );
@@ -104,30 +108,8 @@ class _SignUpEmailScreenState extends State<SignUpEmailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Image.asset(
-            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
-            width: 24,
-            height: 24,
-            color: const Color(0xFF003E3B),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Create an Account',
-          style: TextStyle(
-            color: AppColors.secondary,
-            fontSize: 20,
-            fontFamily: 'SF Pro Display',
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: 'Create an Account'),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(32.0),

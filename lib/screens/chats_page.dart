@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../data/temp_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; 
+import 'dart:async'; // ── ADDED FOR STREAM SUBSCRIPTION ──
 import 'inner_chat_page.dart';
 
 class ChatsPage extends StatefulWidget {
@@ -9,18 +11,101 @@ class ChatsPage extends StatefulWidget {
   State<ChatsPage> createState() => _ChatsPageState();
 }
 
-class _ChatsPageState extends State<ChatsPage> {
-  late List<ChatThread> _threads;
+// ── 1. ADDED MEMORY LOCK MIXIN ──
+class _ChatsPageState extends State<ChatsPage> with AutomaticKeepAliveClientMixin {
+  
+  // ── 2. KEEP ALIVE SET TO TRUE ──
+  @override
+  bool get wantKeepAlive => true;
+
+  User? get _user => FirebaseAuth.instance.currentUser;
+  
+  // ── NEW: State variables to hold data securely ──
+  StreamSubscription<QuerySnapshot>? _chatSubscription;
+  List<QueryDocumentSnapshot> _chatDocs = [];
+  bool _isLoading = true;
+  bool _hasError = false;
 
   @override
   void initState() {
     super.initState();
-    _threads = List.from(tempChatThreads);
+    _listenToChats(); // Start the background listener
   }
 
-  void _confirmDelete(int index) {
-    final thread = _threads[index];
+  @override
+  void dispose() {
+    _chatSubscription?.cancel(); // Always clean up listeners!
+    super.dispose();
+  }
 
+  // ── 3. THE HYBRID FETCH: Background Real-time Listener ──
+  void _listenToChats() {
+    final uid = _user?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    _chatSubscription = FirebaseFirestore.instance
+        .collection('chats')
+        .where('buyerId', isEqualTo: uid)
+        .orderBy('lastMessageTime', descending: true)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (mounted) {
+          setState(() {
+            _chatDocs = snapshot.docs;
+            _isLoading = false;
+            _hasError = false;
+          });
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _isLoading = false;
+          });
+        }
+      },
+    );
+  }
+
+  // ── 4. PULL-TO-REFRESH HANDLER ──
+  Future<void> _handleRefresh() async {
+    // Because the stream is already keeping data perfectly up-to-date, 
+    // we just add a small delay to give the user the visual satisfaction of a refresh!
+    await Future.delayed(const Duration(milliseconds: 600));
+  }
+
+  String _formatTime(Timestamp? timestamp) {
+    if (timestamp == null) return '';
+    final dateTime = timestamp.toDate();
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '??';
+    final parts = name.split(' ');
+    if (parts.length > 1) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name.substring(0, 1).toUpperCase();
+  }
+
+  void _confirmDelete(String chatId, String contactName) {
     showModalBottomSheet(
       context: context,
       isDismissible: true,
@@ -67,7 +152,7 @@ class _ChatsPageState extends State<ChatsPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Your conversation with ${thread.contactName} will be removed from your chats.',
+                  'Your conversation with $contactName will be removed from your chats.',
                   style: const TextStyle(
                     fontFamily: 'SF Pro Display',
                     fontSize: 14,
@@ -82,7 +167,7 @@ class _ChatsPageState extends State<ChatsPage> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      _deleteChat(index, thread);
+                      _deleteChat(chatId);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFEF4444),
@@ -133,88 +218,138 @@ class _ChatsPageState extends State<ChatsPage> {
     );
   }
 
-  void _deleteChat(int index, ChatThread thread) {
-    setState(() {
-      _threads.removeAt(index);
-    });
-
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Chat deleted'),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () {
-            setState(() {
-              _threads.insert(index, thread);
-            });
-          },
-        ),
-      ),
-    );
+  Future<void> _deleteChat(String chatId) async {
+    try {
+      await FirebaseFirestore.instance.collection('chats').doc(chatId).delete();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat deleted'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete chat: $e')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ── REQUIRED FOR KEEPALIVE ──
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(left: 24, top: 24, bottom: 8),
-              child: Text(
-                'Chats',
-                style: TextStyle(
-                  fontFamily: 'SF Pro Display',
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+        // ── 5. WRAPPED IN REFRESH INDICATOR ──
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: const Color(0xFF003E3B),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 24, top: 24, bottom: 8),
+                child: Text(
+                  'Chats',
+                  style: TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
               ),
-            ),
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _threads.length,
-                separatorBuilder: (_, __) =>
-                    const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                itemBuilder: (context, index) {
-                  final thread = _threads[index];
-                  return Dismissible(
-                    key: ValueKey(thread.id),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      color: Colors.red,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 24),
-                      child: const Icon(Icons.delete,
-                          color: Colors.white, size: 28),
-                    ),
-                    confirmDismiss: (_) async {
-                      _confirmDelete(index);
-                      return false; // We handle deletion manually
-                    },
-                    child: _buildChatRow(context, thread),
-                  );
-                },
+              const Divider(height: 1, color: Color(0xFFEEEEEE)),
+              
+              // ── DYNAMIC UI BASED ON LOCAL STATE ──
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)))
+                    : _hasError
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Container(
+                              height: MediaQuery.of(context).size.height * 0.6,
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'Error loading chats.\nPlease check database indexes.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontFamily: 'SF Pro Display', color: Colors.red),
+                              ),
+                            ),
+                          )
+                        : _chatDocs.isEmpty
+                            ? SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Container(
+                                  height: MediaQuery.of(context).size.height * 0.6,
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'No active chats.',
+                                    style: TextStyle(fontFamily: 'SF Pro Display', color: Color(0xFF9F9F9F)),
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                itemCount: _chatDocs.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                                itemBuilder: (context, index) {
+                                  final data = _chatDocs[index].data() as Map<String, dynamic>;
+                                  final chatId = _chatDocs[index].id;
+
+                                  return Dismissible(
+                                    key: ValueKey(chatId),
+                                    direction: DismissDirection.endToStart,
+                                    background: Container(
+                                      color: Colors.red,
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 24),
+                                      child: const Icon(Icons.delete, color: Colors.white, size: 28),
+                                    ),
+                                    confirmDismiss: (_) async {
+                                      _confirmDelete(chatId, data['storeName'] ?? 'Unknown');
+                                      return false; 
+                                    },
+                                    child: _buildChatRow(context, data, chatId),
+                                  );
+                                },
+                              ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildChatRow(BuildContext context, ChatThread thread) {
+  Widget _buildChatRow(BuildContext context, Map<String, dynamic> data, String chatId) {
+    final storeName = data['storeName'] ?? 'Unknown Store';
+    final storeImage = data['storeImage'] ?? '';
+    final lastMessage = data['lastMessage'] ?? '';
+    final timeAgo = _formatTime(data['lastMessageTime'] as Timestamp?);
+    final unreadCount = data['unreadCount'] ?? 0;
+    final storeId = data['storeId'] ?? '';
+    final isOnline = data['isOnline'] ?? false; 
+
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => InnerChatPage(chatThread: thread),
+          builder: (_) => InnerChatPage(
+            chatId: chatId,
+            storeId: storeId,
+            storeName: storeName,
+            storeImage: storeImage,
+          ),
         ),
       ),
       behavior: HitTestBehavior.opaque,
@@ -230,17 +365,20 @@ class _ChatsPageState extends State<ChatsPage> {
                   CircleAvatar(
                     radius: 26,
                     backgroundColor: const Color(0xFFCDEB45),
-                    child: Text(
-                      thread.initials,
-                      style: const TextStyle(
-                        fontFamily: 'SF Pro Display',
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF003E3B),
-                      ),
-                    ),
+                    backgroundImage: storeImage.isNotEmpty ? NetworkImage(storeImage) : null,
+                    child: storeImage.isEmpty
+                        ? Text(
+                            _getInitials(storeName),
+                            style: const TextStyle(
+                              fontFamily: 'SF Pro Display',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF003E3B),
+                            ),
+                          )
+                        : null,
                   ),
-                  if (thread.isOnline)
+                  if (isOnline)
                     Positioned(
                       bottom: 2,
                       right: 2,
@@ -263,7 +401,7 @@ class _ChatsPageState extends State<ChatsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    thread.contactName,
+                    storeName,
                     style: const TextStyle(
                       fontFamily: 'SF Pro Display',
                       fontSize: 17,
@@ -273,7 +411,7 @@ class _ChatsPageState extends State<ChatsPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    thread.lastMessage,
+                    lastMessage,
                     style: const TextStyle(
                       fontFamily: 'SF Pro Display',
                       fontSize: 14,
@@ -290,14 +428,14 @@ class _ChatsPageState extends State<ChatsPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  thread.timeAgo,
+                  timeAgo,
                   style: const TextStyle(
                     fontFamily: 'SF Pro Display',
                     fontSize: 12,
                     color: Color(0xFF9F9F9F),
                   ),
                 ),
-                if (thread.unreadCount > 0) ...[
+                if (unreadCount > 0) ...[
                   const SizedBox(height: 6),
                   Container(
                     width: 22,
@@ -308,7 +446,7 @@ class _ChatsPageState extends State<ChatsPage> {
                     ),
                     child: Center(
                       child: Text(
-                        '${thread.unreadCount}',
+                        '$unreadCount',
                         style: const TextStyle(
                           fontFamily: 'SF Pro Display',
                           fontSize: 11,

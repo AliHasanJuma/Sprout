@@ -38,22 +38,26 @@ dependencies:
   firebase_auth: ^6.2.0
   firebase_ui_auth: ^3.0.1
   flutter_svg: ^2.0.10+1
-  geolocator: ^13.0.2
-  geocoding: ^3.0.0
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
   cloud_firestore: ^6.1.3
+  shared_preferences: ^2.5.5
+  http: ^1.1.0
+  image_picker: ^1.0.5
+  path_provider: ^2.1.5
+  firebase_storage: ^13.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
+  flutter_launcher_icons: ^0.13.1
   flutter_lints: ^6.0.0
-
   flutter_native_splash: ^2.4.0
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -76,6 +80,9 @@ flutter:
       - assets/UI icons package/PNG/Black/Communication/
       - assets/UI icons package/PNG/Black/Interface/
       - assets/UI icons package/PNG/Black/Edit/
+      - assets/UI icons package/PNG/Black/File/
+      - assets/UI icons package/PNG/Black/Menu/
+      - assets/UI icons package/PNG/Black/Media/
       - assets/UI icons package/PNG/White/Communication/
       - assets/icons/
       - assets/logo/
@@ -84,6 +91,53 @@ flutter:
       - assets/images/
       - assets/images/category/
       - assets/images/home page widgets/
+      - assets/Becpme a seller icons/
+
+  fonts:
+    - family: SF Pro Display
+      fonts:
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Regular.otf
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-RegularItalic.otf
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Light.otf
+          weight: 300
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-LightItalic.otf
+          weight: 300
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Medium.otf
+          weight: 500
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-MediumItalic.otf
+          weight: 500
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Semibold.otf
+          weight: 600
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-SemiboldItalic.otf
+          weight: 600
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Bold.otf
+          weight: 700
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-BoldItalic.otf
+          weight: 700
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Heavy.otf
+          weight: 800
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-HeavyItalic.otf
+          weight: 800
+          style: italic
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-Black.otf
+          weight: 900
+        - asset: assets/FONTS/SF PRO/Display/SF-Pro-Display-BlackItalic.otf
+          weight: 900
+          style: italic
+    - family: SF Pro Text
+      fonts:
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Regular.otf
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Medium.otf
+          weight: 500
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Semibold.otf
+          weight: 600
+        - asset: assets/FONTS/SF PRO/Text/SF-Pro-Text-Bold.otf
+          weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -1,5 +1,6 @@
-// TODO: Replace with Firebase
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart'; 
 import '../data/temp_data.dart';
 import 'store_page.dart';
 
@@ -10,18 +11,119 @@ class FavouritePage extends StatefulWidget {
   State<FavouritePage> createState() => FavouritePageState();
 }
 
-class FavouritePageState extends State<FavouritePage> {
-  /// Call this from parent to refresh the list when returning from StorePage
-  void refresh() {
-    if (mounted) setState(() {});
+// ── 1. ADD THE MIXIN ──
+class FavouritePageState extends State<FavouritePage> with AutomaticKeepAliveClientMixin {
+  
+  // ── 2. LOCK THE PAGE IN MEMORY ──
+  @override
+  bool get wantKeepAlive => true; 
+
+  bool _isLoading = true;
+  List<QueryDocumentSnapshot> _favouriteStores = [];
+  String? _uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _uid = FirebaseAuth.instance.currentUser?.uid;
+    _loadFavourites(); // Fetch data once when the tab is first opened
+  }
+
+  // ── 3. MANUAL FETCH FOR PULL-TO-REFRESH ──
+  Future<void> _loadFavourites() async {
+    if (_uid == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      // 1. Get user's favourite IDs
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_uid).get();
+      final userData = userDoc.data() ?? {};
+      final List<dynamic> favIds = userData['favouriteStoreIds'] ?? [];
+
+      if (favIds.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _favouriteStores = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      // 2. Fetch Store details for those IDs
+      final storeSnap = await FirebaseFirestore.instance
+          .collection('stores')
+          .where(FieldPath.documentId, whereIn: favIds)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _favouriteStores = storeSnap.docs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading favourites: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // ── 4. INSTANT UI UPDATE WHEN REMOVING FAVOURITE ──
+  Future<void> _removeFavourite(String storeId) async {
+    if (_uid == null) return;
+
+    // Remove from the screen instantly to feel snappy!
+    setState(() {
+      _favouriteStores.removeWhere((doc) => doc.id == storeId);
+    });
+
+    // Update Firebase silently in the background
+    await FirebaseFirestore.instance.collection('users').doc(_uid).update({
+      'favouriteStoreIds': FieldValue.arrayRemove([storeId])
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ── REQUIRED FOR KEEPALIVE ──
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: tempFavourites.isEmpty ? _buildEmptyState() : _buildFilledState(),
+        // ── 5. WRAP WITH REFRESH INDICATOR ──
+        child: RefreshIndicator(
+          onRefresh: _loadFavourites,
+          color: const Color(0xFF003E3B),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)))
+              : _favouriteStores.isEmpty
+                  // We wrap the empty state in a scroll view so you can still pull down to refresh even when empty!
+                  ? SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Container(
+                        height: MediaQuery.of(context).size.height * 0.7,
+                        alignment: Alignment.center,
+                        child: _buildEmptyState(),
+                      ),
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      itemCount: _favouriteStores.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                      itemBuilder: (context, index) {
+                        final data = _favouriteStores[index].data() as Map<String, dynamic>;
+                        final storeId = _favouriteStores[index].id;
+                        return _buildFavRow(context, data, storeId);
+                      },
+                    ),
+        ),
       ),
     );
   }
@@ -33,7 +135,6 @@ class FavouritePageState extends State<FavouritePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Heart + sad face illustration
             Image.asset(
               'assets/icons/MG_favourite_list.png',
               width: 120,
@@ -71,44 +172,34 @@ class FavouritePageState extends State<FavouritePage> {
     );
   }
 
-  Widget _buildFilledState() {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      itemCount: tempFavourites.length,
-      separatorBuilder: (_, __) =>
-          const Divider(height: 1, color: Color(0xFFEEEEEE)),
-      itemBuilder: (context, index) {
-        final fav = tempFavourites[index];
-        return _buildFavRow(fav);
-      },
-    );
-  }
-
-  Widget _buildFavRow(FavouriteItem fav) {
-    // Find the full store object
-    final store = tempStores.firstWhere(
-      (s) => s.id == fav.storeId,
-      orElse: () => tempStores.first,
+  Widget _buildFavRow(BuildContext context, Map<String, dynamic> data, String storeId) {
+    final store = Store(
+      id: storeId,
+      name: data['name'] ?? '',
+      description: data['description'] ?? '',
+      imagePath: data['imageUrl'] ?? '',
+      logoPath: data['logoUrl'] ?? '',
+      rating: (data['rating'] ?? 0.0).toDouble(),
+      category: data['category'] ?? 'General',
+      distanceKm: (data['distanceKm'] ?? 0.0).toDouble(),
+      products: [], 
     );
 
     return GestureDetector(
-      onTap: () async {
-        await Navigator.push(
+      onTap: () {
+        Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => StorePage(store: store)),
         );
-        // Refresh after returning (favourite might have been toggled)
-        setState(() {});
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            // Store image
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                fav.imagePath,
+              child: Image.network(
+                store.imagePath,
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
@@ -123,13 +214,12 @@ class FavouritePageState extends State<FavouritePage> {
               ),
             ),
             const SizedBox(width: 16),
-            // Store info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    fav.storeName,
+                    store.name,
                     style: const TextStyle(
                       fontFamily: 'SF Pro Display',
                       fontSize: 17,
@@ -138,19 +228,14 @@ class FavouritePageState extends State<FavouritePage> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  _buildStars(fav.rating),
+                  _buildStars(store.rating),
                 ],
               ),
             ),
-            // Remove heart button
+            // Call our new snappier remove function!
             IconButton(
-              icon: const Icon(Icons.favorite,
-                  color: Color(0xFF003E3B), size: 24),
-              onPressed: () {
-                setState(() {
-                  tempFavourites.removeWhere((f) => f.storeId == fav.storeId);
-                });
-              },
+              icon: const Icon(Icons.favorite, color: Color(0xFF003E3B), size: 24),
+              onPressed: () => _removeFavourite(storeId), 
             ),
           ],
         ),

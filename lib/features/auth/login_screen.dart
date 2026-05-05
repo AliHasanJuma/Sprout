@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import '../../core/constants/app_colors.dart';
+import '../../shared/widgets/app_top_bar.dart';
 import '../../shared/widgets/custom_button.dart';
 import '../../shared/widgets/custom_textfield.dart';
 import 'sign_up_screen.dart';
@@ -60,39 +61,20 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Image.asset(
-            'assets/UI icons package/PNG/Black/Arrow/Arrow_Left_MD.png',
-            width: 24,
-            height: 24,
-            color: const Color(0xFF003E3B),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Log In',
-          style: TextStyle(
-            fontFamily: 'SF Pro Display',
-            color: AppColors.secondary,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-        centerTitle: true,
-      ),
+      backgroundColor: Colors.white,
+      appBar: const AppTopBar(title: 'Log In'),
       body: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 4),
             const Text(
               'Welcome Back!',
               style: TextStyle(
+                fontFamily: 'SF Pro Display',
                 fontSize: 24,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                 color: AppColors.secondary,
               ),
             ),
