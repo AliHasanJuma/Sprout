@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TODO: replace this SVG with a 1200x630 og-image.png exported from a real branded mock -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#FFFFFF"/>
+  <path d="M 1200 0 L 1200 240 C 1200 240 870 130 600 130 C 330 130 0 240 0 240 L 0 0 Z" fill="#DAF64F"/>
+  <text x="600" y="380" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="900" font-size="92" fill="#003E3B">Sprout</text>
+  <text x="600" y="450" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="500" font-size="28" fill="#003E3B">Turn your hobby into income. Get discovered locally.</text>
+  <text x="600" y="510" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-weight="400" font-size="20" fill="#5B5B5B">A Bahrain-first community marketplace.</text>
+</svg>
