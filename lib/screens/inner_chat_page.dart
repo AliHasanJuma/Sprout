@@ -142,20 +142,33 @@ class _InnerChatPageState extends State<InnerChatPage> {
     final timestamp = FieldValue.serverTimestamp();
     final chatRef = FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
 
+    // 1. Save the message bubble to the subcollection
     await chatRef.collection('messages').add({
       'text': text,
-      'senderId': _user!.uid,
+      'senderId': _user!.uid, // Tracks exactly who typed this specific bubble
       'timestamp': timestamp,
     });
 
+    // 2. SAFE PARSING: Extract the true buyer UID from the chatId string (index 0)
+    // This stops a seller's reply from accidentally stealing the 'buyerId' slot!
+    final String trueBuyerId = widget.chatId.split('_')[0];
+
+    // 3. Update main chat document safely
     await chatRef.set({
-      'buyerId': _user!.uid,
+      'buyerId': trueBuyerId, 
       'storeId': widget.storeId,
       'storeName': widget.storeName,
       'storeImage': widget.storeImage,
       'lastMessage': text,
       'lastMessageTime': timestamp,
     }, SetOptions(merge: true));
+
+    // 4. Optional: If the buyer is sending the message, save their name to display for the seller
+    if (_user!.uid == trueBuyerId) {
+      await chatRef.set({
+        'buyerName': _user!.displayName ?? 'Customer',
+      }, SetOptions(merge: true));
+    }
   }
 
   void _showReportSheet() {
