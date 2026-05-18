@@ -52,26 +52,36 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
 
     try {
       final productsSnapshot = await FirebaseFirestore.instance
-          .collection('products')
+          .collection('shelves')
           .where('storeId', isEqualTo: widget.storeId)
           .get();
       
       _storeProducts = productsSnapshot.docs;
       
+
       final productsForAI = _storeProducts.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         final nameValue = data['name'];
         final priceValue = data['price'];
-        final imageUrlValue = data['imageUrl'];
+        final imageUrlValue = data['photoPaths'] != null && (data['photoPaths'] as List).isNotEmpty 
+            ? (data['photoPaths'] as List)[0] 
+            : null;
+        final priceTypeValue = data['priceType'];
+        final sizesValue = data['sizes'] as List<dynamic>?;
+        final addOnsValue = data['addOns'] as List<dynamic>?;
         
         final String name = nameValue != null ? nameValue.toString() : 'Unknown';
         final double price = priceValue != null ? (priceValue as num).toDouble() : 0.0;
         final String imageUrl = imageUrlValue != null ? imageUrlValue.toString() : '';
+        final String priceType = priceTypeValue != null ? priceTypeValue.toString() : 'fixed';
         
         return {
           'name': name,
           'price': price,
           'imageUrl': imageUrl,
+          'priceType': priceType,
+          'sizes': sizesValue ?? [],
+          'addOns': addOnsValue ?? [],
         };
       }).toList();
       
@@ -100,20 +110,37 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
           final item = items[i];
           final itemName = item['name'] as String? ?? 'Unknown';
           
-          // Find matching product image
-          String productImage = '';
+          // Find matching product
+          Map<String, dynamic>? matchingProduct;
           for (var product in productsForAI) {
             if (product['name'] == itemName) {
-              productImage = product['imageUrl'] as String? ?? '';
+              matchingProduct = product;
               break;
             }
+          }
+          
+          String productImage = matchingProduct?['imageUrl'] ?? '';
+          final selectedSize = item['selected_size'];
+          final selectedAddons = item['selected_addons'] as List<dynamic>? ?? [];
+          final pricePerUnit = (item['price_per_unit'] as num? ?? 0).toDouble();
+          
+          // Build description string with size and add-ons
+          String description = '';
+          if (selectedSize != null && selectedSize.toString().isNotEmpty) {
+            description += 'Size: $selectedSize\n';
+          }
+          if (selectedAddons.isNotEmpty) {
+            description += 'Add-ons: ${selectedAddons.join(', ')}\n';
           }
           
           _extractedItems.add({
             'name': itemName,
             'quantity': item['quantity'] as int? ?? 1,
-            'price_per_unit': (item['price_per_unit'] as num? ?? 0).toDouble(),
+            'price_per_unit': pricePerUnit,
             'imageUrl': productImage,
+            'description': description.trim(),
+            'selected_size': selectedSize,
+            'selected_addons': selectedAddons,
           });
           _quantities[i] = item['quantity'] as int? ?? 1;
           _visible[i] = true;
@@ -123,7 +150,7 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
         _deliveryMethod = aiResult['delivery_method'] as String? ?? 'Not specified';
         _deliveryArea = aiResult['delivery_area'] as String? ?? 'Not specified';
         _notes = aiResult['notes'] as String? ?? '';
-      } else {
+      }else {
         _hasOrder = false;
         _error = 'No order detected in the conversation. Make sure you and the seller have agreed on items and prices.';
       }
@@ -412,6 +439,7 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
     final qty = _quantities[index] ?? 1;
     final isTrash = qty <= 1;
     final productImage = item['imageUrl'] ?? '';
+    final description = item['description'] ?? '';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,6 +480,17 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
                   color: Colors.black,
                 ),
               ),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 10,
+                    color: Color(0xFF9F9F9F),
+                  ),
+                ),
+              ],
               const SizedBox(height: 4),
               Text(
                 'Qty: $qty × ${item['price_per_unit']} BD',

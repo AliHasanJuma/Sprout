@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class GroqOrderService {
-  // GROQ API KEY
   static const String _apiKey = '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';
   static const String _apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
   
@@ -14,7 +13,6 @@ class GroqOrderService {
     required List<Map<String, dynamic>> storeProducts,
   }) async {
     try {
-      // Get chat messages from Firestore
       final messagesSnapshot = await FirebaseFirestore.instance
           .collection('chats')
           .doc(chatId)
@@ -29,7 +27,6 @@ class GroqOrderService {
       
       final currentUser = FirebaseAuth.instance.currentUser;
       
-      // Build conversation string
       String conversation = '';
       for (var doc in messagesSnapshot.docs) {
         final data = doc.data();
@@ -39,19 +36,42 @@ class GroqOrderService {
         conversation += '$senderName: $text\n';
       }
       
-      // Build products list
+      // Build products list with sizes and addOns
       String productsList = '';
       for (var product in storeProducts) {
         final name = product['name'] ?? 'Unknown';
         final price = product['price'] ?? 0;
-        productsList += '- $name: $price BHD\n';
+        final priceType = product['priceType'] ?? 'fixed';
+        
+        productsList += '- $name: Base price $price BHD ($priceType)\n';
+        
+        // Add sizes if available
+        final sizes = product['sizes'] as List<dynamic>?;
+        if (sizes != null && sizes.isNotEmpty) {
+          productsList += '  Sizes available:\n';
+          for (var size in sizes) {
+            final sizeName = size['size'] ?? 'unknown';
+            final modifier = size['priceModifier'] ?? 0;
+            productsList += '    - $sizeName: +${modifier} BHD\n';
+          }
+        }
+        
+        // Add addOns if available
+        final addOns = product['addOns'] as List<dynamic>?;
+        if (addOns != null && addOns.isNotEmpty) {
+          productsList += '  Add-ons available:\n';
+          for (var addon in addOns) {
+            final addonName = addon['name'] ?? 'unknown';
+            final modifier = addon['priceModifier'] ?? 0;
+            productsList += '    - $addonName: +${modifier} BHD\n';
+          }
+        }
       }
       
       print('=== CONVERSATION ===');
       print(conversation);
       print('====================');
       
-      // Make API call to Groq
       final response = await http.post(
         Uri.parse(_apiUrl),
         headers: {
@@ -59,29 +79,47 @@ class GroqOrderService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': 'llama-3.3-70b-versatile', // Free, fast, reliable
+          'model': 'llama-3.3-70b-versatile',
           'messages': [
             {
               'role': 'system',
               'content': '''You are an order extraction assistant for "Sprout", a local marketplace app in Bahrain.
 
-          RULES:
-          1. Extract order details when the seller has agreed to provide the items.
-          2. Seller agreement includes: "yes", "okay", "alright", "deal", "confirmed", "fine", "go ahead", "I will give you", "I can do that", etc.
-          3. If the buyer asks for a discount and the seller offers a different discount, use the seller's offered discount (even if different from buyer's request).
-          4. If the seller hasn't responded yet or says "no", set has_order = false.
-          5. Extract each item mentioned by the buyer that the seller agrees to.
-          6. Calculate total_price based on quantities and agreed prices.
+RULES:
+1. Extract order details when the seller has agreed to provide the items.
+2. Seller agreement includes: "yes", "okay", "alright", "deal", "confirmed", "fine", "go ahead", "I will give you", "I can do that", etc.
+3. If the buyer asks for a discount and the seller offers a different discount, use the seller's offered discount.
+4. If the seller hasn't responded yet or says "no", set has_order = false.
+5. Extract each item mentioned by the buyer that the seller agrees to.
+6. Include any selected size and add-ons in the order details.
+7. Calculate final price by: base price + size modifier + add-on modifiers, then multiply by quantity.
 
-          Return ONLY valid JSON. No other text. Format: {"has_order": true/false, "items": [{"name": "product", "quantity": number, "price_per_unit": number}], "total_price": number, "delivery_method": "pickup/courier", "delivery_area": "area", "notes": "instructions"}''',
+Return ONLY valid JSON. No other text. Format: 
+{
+  "has_order": true/false, 
+  "items": [
+    {
+      "name": "product", 
+      "quantity": number, 
+      "base_price": number,
+      "selected_size": "size name or null",
+      "selected_addons": ["addon1", "addon2"],
+      "price_per_unit": number (final price after modifiers)
+    }
+  ], 
+  "total_price": number, 
+  "delivery_method": "pickup/courier", 
+  "delivery_area": "area", 
+  "notes": "instructions"
+}''',
             },
             {
               'role': 'user',
-              'content': 'STORE: $storeName\nPRODUCTS:\n$productsList\n\nCONVERSATION:\n$conversation\n\nExtract order details as JSON. The seller said "Alright I will give you these items" - this means they agreed.',
+              'content': 'STORE: $storeName\nAVAILABLE PRODUCTS WITH SIZES AND ADD-ONS:\n$productsList\n\nCONVERSATION:\n$conversation\n\nExtract order details including any selected sizes and add-ons. Calculate final prices correctly.',
             }
           ],
           'temperature': 0.2,
-          'max_tokens': 500,
+          'max_tokens': 800,
         }),
       );
       
@@ -93,7 +131,6 @@ class GroqOrderService {
         print(content);
         print('=====================');
         
-        // Extract JSON from response
         final startIndex = content.indexOf('{');
         final endIndex = content.lastIndexOf('}');
         
