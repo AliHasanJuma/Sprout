@@ -47,7 +47,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
     _checkForActiveOrder();
 
     // ── THE FIX: Initialize the stream exactly ONCE when the page opens ──
-    // Now, opening the keyboard won't destroy and restart your chat connection!
     _messagesStream = FirebaseFirestore.instance
         .collection('chats')
         .doc(widget.chatId)
@@ -142,18 +141,14 @@ class _InnerChatPageState extends State<InnerChatPage> {
     final timestamp = FieldValue.serverTimestamp();
     final chatRef = FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
 
-    // 1. Save the message bubble to the subcollection
     await chatRef.collection('messages').add({
       'text': text,
-      'senderId': _user!.uid, // Tracks exactly who typed this specific bubble
+      'senderId': _user!.uid, 
       'timestamp': timestamp,
     });
 
-    // 2. SAFE PARSING: Extract the true buyer UID from the chatId string (index 0)
-    // This stops a seller's reply from accidentally stealing the 'buyerId' slot!
     final String trueBuyerId = widget.chatId.split('_')[0];
 
-    // 3. Update main chat document safely
     await chatRef.set({
       'buyerId': trueBuyerId, 
       'storeId': widget.storeId,
@@ -163,12 +158,31 @@ class _InnerChatPageState extends State<InnerChatPage> {
       'lastMessageTime': timestamp,
     }, SetOptions(merge: true));
 
-    // 4. Optional: If the buyer is sending the message, save their name to display for the seller
     if (_user!.uid == trueBuyerId) {
       await chatRef.set({
         'buyerName': _user!.displayName ?? 'Customer',
       }, SetOptions(merge: true));
     }
+  }
+
+  // ── HELPER METHOD: NAVIGATE TO SELLER STORE PAGE ──
+  void _navigateToStorePage() {
+    final sellerStore = Store(
+      id: widget.storeId,
+      name: widget.storeName,
+      description: '',
+      imagePath: widget.storeImage,
+      logoPath: widget.storeImage,
+      rating: 5.0,
+      category: 'General',
+      distanceKm: 0.0,
+      products: [],
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => StorePage(store: sellerStore)),
+    );
   }
 
   void _showReportSheet() {
@@ -300,7 +314,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
             _buildTopBar(),
             const Divider(height: 1, color: Color(0xFFEEEEEE)),
             
-            // Order status card
             if (_isLoadingOrder)
               const Padding(
                 padding: EdgeInsets.all(16),
@@ -316,10 +329,9 @@ class _InnerChatPageState extends State<InnerChatPage> {
                 onOrderCancelled: _refreshOrders,
               ),
             
-            // Messages
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: _messagesStream, // ── UPGRADED: Reading from the locked memory stream! ──
+                stream: _messagesStream, 
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
@@ -350,7 +362,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
               ),
             ),
             
-            // Start New Chat button - shows when there's an active order
             if (_hasActiveOrder)
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -378,7 +389,6 @@ class _InnerChatPageState extends State<InnerChatPage> {
                 ),
               ),
             
-            // Input row - only show if no active order
             if (!_hasActiveOrder) _buildInputRow(),
           ],
         ),
@@ -386,55 +396,99 @@ class _InnerChatPageState extends State<InnerChatPage> {
     );
   }
 
+  // ── UPDATED TOP BAR WITH CONDITIONAL INTERACTION RULES ──
   Widget _buildTopBar() {
+    final String trueBuyerId = widget.chatId.split('_')[0];
+    final bool isBuyer = _user?.uid == trueBuyerId;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF003E3B), size: 24),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: const Color(0xFFCDEB45),
-            backgroundImage: widget.storeImage.isNotEmpty ? NetworkImage(widget.storeImage) : null,
-            child: widget.storeImage.isEmpty
-                ? Text(
-                    _getInitials(widget.storeName),
-                    style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF003E3B)),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AiSummarisePage(
-                      chatId: widget.chatId,
-                      storeId: widget.storeId,
-                      storeName: widget.storeName,
-                      storeImage: widget.storeImage,
+      child: isBuyer 
+          ? Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Color(0xFF003E3B), size: 24),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _navigateToStorePage, // Buyer view: Avatar is clickable
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFFCDEB45),
+                    backgroundImage: widget.storeImage.isNotEmpty ? NetworkImage(widget.storeImage) : null,
+                    child: widget.storeImage.isEmpty
+                        ? Text(
+                            _getInitials(widget.storeName),
+                            style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF003E3B)),
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _navigateToStorePage, // Buyer view: Text is clickable
+                    child: Text(
+                      widget.storeName,
+                      style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
                     ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.flag_outlined, color: Color(0xFF003E3B), size: 22),
+                  onPressed: _showReportSheet,
+                ),
+              ],
+            )
+          : FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance.collection('users').doc(trueBuyerId).get(),
+              builder: (context, snapshot) {
+                String displayBuyerName = "Customer";
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  final data = snapshot.data!.data() as Map<String, dynamic>?;
+                  if (data != null) {
+                    final firstName = data['firstName'] ?? '';
+                    final lastName = data['lastName'] ?? '';
+                    displayBuyerName = '$firstName $lastName'.trim();
+                    if (displayBuyerName.isEmpty) {
+                      displayBuyerName = data['displayName'] ?? "Customer";
+                    }
+                  }
+                }
+
+                return Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Color(0xFF003E3B), size: 24),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: 8),
+                    // Seller view: Plain CircleAvatar (No detectors, unclickable)
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: const Color(0xFFCDEB45),
+                      child: Text(
+                        _getInitials(displayBuyerName),
+                        style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF003E3B)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      // Seller view: Plain Text (No detectors, unclickable)
+                      child: Text(
+                        displayBuyerName,
+                        style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.flag_outlined, color: Color(0xFF003E3B), size: 22),
+                      onPressed: _showReportSheet,
+                    ),
+                  ],
                 );
               },
-              child: Text(
-                widget.storeName,
-                style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-              ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.flag_outlined, color: Color(0xFF003E3B), size: 22),
-            onPressed: _showReportSheet,
-          ),
-        ],
-      ),
     );
   }
 

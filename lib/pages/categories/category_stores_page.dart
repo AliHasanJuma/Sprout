@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../../data/temp_data.dart';
 import '../../screens/store_page.dart';
 
@@ -11,7 +11,7 @@ class CategoryStoresPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Clean up the category name for the query (e.g., "Sweet &\nBaking" -> "Sweet & Baking")
+    // Clean up the category name for the header title display
     final cleanCategoryQuery = categoryName.replaceAll('\n', ' ');
 
     return Scaffold(
@@ -34,13 +34,8 @@ class CategoryStoresPage extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      // ── DYNAMIC FIRESTORE QUERY ──
       body: FutureBuilder<QuerySnapshot>(
-        // Query the 'stores' collection where the 'category' field matches the tapped label
-        future: FirebaseFirestore.instance
-            .collection('stores')
-            .where('category', isEqualTo: cleanCategoryQuery)
-            .get(),
+        future: FirebaseFirestore.instance.collection('stores').get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
@@ -52,7 +47,35 @@ class CategoryStoresPage extends StatelessWidget {
             );
           }
 
-          final storesDocs = snapshot.data?.docs ?? [];
+          final allDocs = snapshot.data?.docs ?? [];
+
+          final storesDocs = allDocs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final String dbCategory = (data['category'] ?? '').toString();
+            
+            final String targetLower = categoryName.toLowerCase();
+            final String dbLower = dbCategory.toLowerCase();
+
+            // ── UNIVERSAL NORMALIZATION ──
+            final targetNormalized = targetLower.replaceAll(RegExp(r'[\s\n]+'), '').replaceAll('&', 'and');
+            final dbNormalized = dbLower.replaceAll(RegExp(r'[\s\n]+'), '').replaceAll('&', 'and');
+            
+            if (dbNormalized == targetNormalized) return true;
+
+            // ── FALLBACK 1: SWEETS & BAKING KEYWORD MATCH ──
+            if (targetLower.contains('sweet') && targetLower.contains('bak') &&
+                dbLower.contains('sweet') && dbLower.contains('bak')) {
+              return true;
+            }
+
+            // ── FALLBACK 2: CRAFTS & HOME DECOR KEYWORD MATCH ──
+            if (targetLower.contains('craft') && targetLower.contains('decor') &&
+                dbLower.contains('craft') && dbLower.contains('decor')) {
+              return true;
+            }
+
+            return dbNormalized == targetNormalized;
+          }).toList();
 
           if (storesDocs.isEmpty) {
             return const Center(
@@ -82,17 +105,21 @@ class CategoryStoresPage extends StatelessWidget {
   }
 
   Widget _buildStoreCardFromFirebase(BuildContext context, Map<String, dynamic> data, String docId) {
-    // Map the Firebase data to your Store model so the StorePage loads products correctly
+    final String storeDescription = data['bio'] ?? data['description'] ?? '';
+    final String storeBanner = data['bannerPath'] ?? data['imageUrl'] ?? '';
+    final String storeLogo = data['logoPath'] ?? data['logoUrl'] ?? '';
+    final double storeDistance = (data['distanceKm'] ?? 0.0).toDouble();
+
     final store = Store(
       id: docId,
       name: data['name'] ?? 'Shop',
-      description: data['description'] ?? '',
-      imagePath: data['imageUrl'] ?? 'https://via.placeholder.com/80',
-      logoPath: data['logoUrl'] ?? 'https://via.placeholder.com/80',
+      description: storeDescription,
+      imagePath: storeBanner.isNotEmpty ? storeBanner : 'https://via.placeholder.com/80',
+      logoPath: storeLogo.isNotEmpty ? storeLogo : 'https://via.placeholder.com/80',
       rating: (data['rating'] ?? 0.0).toDouble(),
       category: data['category'] ?? 'General',
-      distanceKm: (data['distanceKm'] ?? 0.0).toDouble(),
-      products: [], // Products will dynamically load on the StorePage
+      distanceKm: storeDistance,
+      products: [], 
     );
 
     return GestureDetector(
@@ -119,21 +146,16 @@ class CategoryStoresPage extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              // USING NETWORK IMAGE FOR FIREBASE
-              child: Image.network(
-                store.imagePath,
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD9D9D9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
+              // ── FIXED: Swapped out store.imagePath for store.logoPath ──
+              child: store.logoPath.startsWith('http')
+                  ? Image.network(
+                      store.logoPath,
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _buildImagePlaceholder(),
+                    )
+                  : _buildImagePlaceholder(),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -180,6 +202,17 @@ class CategoryStoresPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: const Color(0xFFD9D9D9),
+        borderRadius: BorderRadius.circular(12),
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'dart:math' as math; 
-import 'dart:async'; // ── ADDED FOR FIREBASE ALARM CLOCK ──
+import 'dart:async'; 
 
 import '../../shared/widgets/search_bar.dart';
 import '../../screens/profile_page.dart';
@@ -28,7 +28,6 @@ class _HomePageState extends State<HomePage> {
   int _bannerPage = 0;
   final CartProvider _cart = CartProvider();
 
-  // ── NEW: Listeners and State ──
   StreamSubscription<User?>? _authSubscription;
   String _userName = "there";
   List<Map<String, dynamic>> _nearMeStores = [];
@@ -40,13 +39,10 @@ class _HomePageState extends State<HomePage> {
     _pageController = PageController(viewportFraction: 0.9);
     _cart.addListener(_onCartChanged);
     
-    // ── THE FIX: Wait for Firebase to securely load the user from memory ──
     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user != null && mounted) {
-        // Now that we are 100% sure the user is loaded, fetch the data!
         _loadInitialData(user.uid);
       } else if (user == null && mounted) {
-        // Handle case where user might be completely logged out
         setState(() => _isLoadingStores = false);
       }
     });
@@ -54,7 +50,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    _authSubscription?.cancel(); // Always clean up your listeners!
+    _authSubscription?.cancel(); 
     _cart.removeListener(_onCartChanged);
     _pageController.dispose();
     super.dispose();
@@ -64,21 +60,21 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() {});
   }
 
-  // ── NEW: One-Time Fetch Function that runs exactly when the user is ready ──
   Future<void> _loadInitialData(String uid) async {
     if (!mounted) return;
-    setState(() => _isLoadingStores = true); // Ensure loading spinner is showing
 
     try {
-      // 1. Fetch User Data (Name and Location)
+      // 1. Fetch User Data (Name, Location, and their linked Store ID)
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       
       double userLat = 26.0667; 
       double userLon = 50.5577;
+      String? myStoreId; 
 
       if (userDoc.exists && userDoc.data() != null) {
         final userData = userDoc.data()!;
         _userName = userData['firstName'] ?? "there";
+        myStoreId = userData['storeId']; 
         userLat = (userData['latitude'] ?? userLat).toDouble();
         userLon = (userData['longitude'] ?? userLon).toDouble();
       }
@@ -89,7 +85,12 @@ class _HomePageState extends State<HomePage> {
 
       for (var doc in storeSnap.docs) {
         final data = doc.data();
-        if (data['ownerId'] == uid) continue; // Hide the user's own shop
+        
+        // ── BULLETPROOF FILTER: HIDES YOUR STORE USING BOTH DOCUMENT ID & OWNER ID ──
+        if (doc.id == myStoreId || data['ownerId'] == uid) {
+          continue; 
+        }
+
         final storeLat = (data['latitude'] ?? 0.0).toDouble();
         final storeLon = (data['longitude'] ?? 0.0).toDouble();
 
@@ -104,7 +105,6 @@ class _HomePageState extends State<HomePage> {
       // Sort the list based on distance (lowest first)
       sortedStores.sort((a, b) => (a['realDistanceKm'] as double).compareTo(b['realDistanceKm'] as double));
 
-      // 3. Update the UI permanently 
       if (mounted) {
         setState(() {
           _nearMeStores = sortedStores;
@@ -116,6 +116,15 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() => _isLoadingStores = false);
       }
+    }
+  }
+
+  // ── NEW: SWIPE DOWN TO REFRESH INTERCEPTOR HANDLER ──
+  Future<void> _handleRefresh() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      // Re-executes the coordinate sync and proximity store updates on demand
+      await _loadInitialData(uid);
     }
   }
 
@@ -151,19 +160,26 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildWaveHeader(),
-            const SizedBox(height: 40),
-            _buildCategories(),
-            const SizedBox(height: 28),
-            _buildBanner(),
-            const SizedBox(height: 28),
-            _buildNearMe(),
-            const SizedBox(height: 32),
-          ],
+      // ── ADDED REFRESH INDICATOR ──
+      body: RefreshIndicator(
+        onRefresh: _handleRefresh,
+        color: const Color(0xFF003E3B), // Matches your primary Sprout design color
+        backgroundColor: Colors.white,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(), // Ensures swipe gesture activates even on small devices
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWaveHeader(),
+              const SizedBox(height: 40),
+              _buildCategories(),
+              const SizedBox(height: 28),
+              _buildBanner(),
+              const SizedBox(height: 28),
+              _buildNearMe(),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
@@ -202,7 +218,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Welcome back, $_userName', // Guaranteed to only draw once data is ready
+                        'Welcome back, $_userName', 
                         style: const TextStyle(
                           fontFamily: 'SF Pro Display',
                           fontSize: 15,
@@ -435,12 +451,17 @@ class _HomePageState extends State<HomePage> {
   Widget _buildStoreCardFromFirebase(Map<String, dynamic> data, String docId) {
     final distance = data['realDistanceKm'] ?? 0.0;
 
+    // Defensive parsing maps securely across old schema variables and new schema variables
+    final String storeLogo = data['logoPath'] ?? data['logoUrl'] ?? 'https://via.placeholder.com/80';
+    final String storeBanner = data['bannerPath'] ?? data['imageUrl'] ?? 'https://via.placeholder.com/80';
+    final String storeBio = data['bio'] ?? data['description'] ?? '';
+
     final firebaseStore = Store(
       id: docId, 
       name: data['name'] ?? 'Shop',
-      description: data['description'] ?? '',
-      imagePath: data['imageUrl'] ?? 'https://via.placeholder.com/80',
-      logoPath: data['logoUrl'] ?? 'https://via.placeholder.com/80',
+      description: storeBio,
+      imagePath: storeBanner,
+      logoPath: storeLogo,
       rating: (data['rating'] ?? 0.0).toDouble(),
       category: data['category'] ?? 'General',
       distanceKm: distance, 
@@ -468,7 +489,7 @@ class _HomePageState extends State<HomePage> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  data['logoUrl'] ?? 'https://via.placeholder.com/80',
+                  firebaseStore.logoPath, 
                   width: 80, height: 80, fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
                 ),
@@ -476,14 +497,14 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              data['name'] ?? 'Shop',
+              firebaseStore.name,
               style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
-            _buildStars((data['rating'] ?? 0.0).toDouble()),
+            _buildStars(firebaseStore.rating),
           ],
         ),
       ),
