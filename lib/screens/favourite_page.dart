@@ -199,7 +199,7 @@ class FavouritePageState extends State<FavouritePage> with AutomaticKeepAliveCli
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
-                store.imagePath,
+                store.logoPath,
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,

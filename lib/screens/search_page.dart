@@ -6,11 +6,12 @@ import '../data/temp_data.dart';
 import 'store_page.dart';
 
 class _SearchResult {
-  final String type; 
+  final String type;
   final String name;
   final String subtitle;
   final double rating;
   final String imagePath;
+  final String logoPath;
   final Map<String, dynamic> data;
   final String docId;
   final int relevanceScore; // ── ADDED RELEVANCE SCORE ──
@@ -21,6 +22,7 @@ class _SearchResult {
     required this.subtitle,
     required this.rating,
     required this.imagePath,
+    required this.logoPath,
     required this.data,
     required this.docId,
     required this.relevanceScore, // ── ADDED RELEVANCE SCORE ──
@@ -119,6 +121,7 @@ class _SearchPageState extends State<SearchPage> {
           subtitle: data['description'] ?? '',
           rating: (data['rating'] ?? 0.0).toDouble(),
           imagePath: data['imageUrl'] ?? '',
+          logoPath: data['logoUrl'] ?? '',
           data: data,
           docId: doc.id,
           relevanceScore: score, // Pass the calculated score
@@ -286,7 +289,7 @@ class _SearchPageState extends State<SearchPage> {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
-                result.imagePath,
+                result.logoPath,
                 width: 80, height: 80, fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
               ),

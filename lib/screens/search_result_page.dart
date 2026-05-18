@@ -112,7 +112,7 @@ class SearchResultPage extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
-                store.imagePath,
+                store.logoPath,
                 width: 80, height: 80, fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
               ),
