@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Lifecycle states for an order card.
 enum OrderStatus {
@@ -125,7 +126,7 @@ class OrderCardData {
     required String deliveryDetails,
   }) {
     final now = DateTime.now();
-    final total = items.fold<double>(0, (sum, i) => sum + i.lineTotal);
+    final total = items.fold<double>(0, (acc, i) => acc + i.lineTotal);
     return OrderCardData(
       orderId: _generateOrderId(),
       chatId: chatId,
@@ -180,10 +181,42 @@ class OrderCardData {
         'totalPrice': totalPrice,
         'status': status.name,
         'pickupCode': pickupCode,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
+        'createdAt': Timestamp.fromDate(createdAt),
+        'updatedAt': Timestamp.fromDate(updatedAt),
         'rating': rating,
       };
+
+  factory OrderCardData.fromMap(Map<String, dynamic> map) {
+    DateTime parseTs(dynamic v) {
+      if (v is Timestamp) return v.toDate();
+      if (v is DateTime) return v;
+      if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
+      return DateTime.now();
+    }
+
+    return OrderCardData(
+      orderId: map['orderId'] as String,
+      chatId: map['chatId'] as String,
+      storeId: map['storeId'] as String,
+      storeName: map['storeName'] as String,
+      storeAvatarUrl: map['storeAvatarUrl'] as String?,
+      buyerId: map['buyerId'] as String,
+      buyerName: map['buyerName'] as String,
+      items: ((map['items'] as List?) ?? [])
+          .map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(growable: false),
+      deliveryDetails: (map['deliveryDetails'] as String?) ?? '',
+      totalPrice: (map['totalPrice'] as num).toDouble(),
+      status: OrderStatus.values.firstWhere(
+        (s) => s.name == map['status'],
+        orElse: () => OrderStatus.pending,
+      ),
+      pickupCode: map['pickupCode'] as String,
+      createdAt: parseTs(map['createdAt']),
+      updatedAt: parseTs(map['updatedAt']),
+      rating: (map['rating'] as num?)?.toDouble(),
+    );
+  }
 }
 
 String _generateOrderId() {

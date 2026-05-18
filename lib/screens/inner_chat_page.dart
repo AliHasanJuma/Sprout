@@ -64,6 +64,8 @@ class _InnerChatPageState extends State<InnerChatPage> {
   void initState() {
     super.initState();
     _orderRepo.addListener(_onOrderRepoChanged);
+    // Live-sync orders for this chat thread across buyer + seller devices.
+    _orderRepo.subscribeToChat(widget.chatId);
     _checkForActiveOrder();
 
     // ── THE FIX: Initialize the stream exactly ONCE when the page opens ──
@@ -85,6 +87,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
   @override
   void dispose() {
     _orderRepo.removeListener(_onOrderRepoChanged);
+    _orderRepo.unsubscribeFromChat(widget.chatId);
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
