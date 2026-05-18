@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Added for Firebase UID
 import '../models/cart_model.dart';
+import '../models/order_card_data.dart';
 import '../providers/cart_provider.dart';
-import '../data/temp_data.dart';
+import '../providers/order_repository.dart';
 import '../screens/inner_chat_page.dart';
 
 class CartPage extends StatefulWidget {
@@ -31,44 +32,50 @@ class _CartPageState extends State<CartPage> {
     if (mounted) setState(() {});
   }
 
-  String _formatCartMessage(List<CartItem> items) {
-    final buffer = StringBuffer();
-    buffer.writeln('🛒 Cart Order:');
-    for (final item in items) {
-      buffer.write('${item.quantity}× ${item.productName}');
-      if (item.selectedSize != null) buffer.write(' (${item.selectedSize})');
-      buffer.writeln(' — ${item.totalPrice.toStringAsFixed(1)} BD');
-      if (item.selectedAddons.isNotEmpty) {
-        buffer.writeln('   Add-ons: ${item.selectedAddons.join(', ')}');
-      }
-      if (item.specialInstructions != null) {
-        buffer.writeln('   Instructions: ${item.specialInstructions}');
-      }
-    }
-    final total = items.fold(0.0, (sum, i) => sum + i.totalPrice);
-    buffer.writeln('─────────────');
-    buffer.writeln('Total: ${total.toStringAsFixed(1)} BD');
-    return buffer.toString().trim();
-  }
-
   void _sendCartToChat() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return; // Failsafe
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return; // Failsafe
 
     final byStore = _cart.itemsByStore;
     if (byStore.isEmpty) return;
 
-    // Send to first store's chat, then navigate there
+    // TODO(backend): enforce single-store cart up front, or fan out one order
+    // per store. Today the cart silently uses the first store group only.
     final firstStoreId = byStore.keys.first;
     final firstItems = byStore[firstStoreId]!;
-    final message = _formatCartMessage(firstItems);
-    
-    // We grab the store name from the first item in the cart
     final storeName = firstItems.first.storeName;
 
-    // ── CREATE THE SMART CHAT ID ──
-    final String chatId = '${uid}_$firstStoreId';
+    final String chatId = '${user.uid}_$firstStoreId';
 
+    final orderItems = firstItems
+        .map(
+          // TODO(schema): forward selectedSize / selectedAddons /
+          // specialInstructions / addonsTotal once OrderItem carries them.
+          // TODO(backend): pull a real product description from
+          // products/shelves by productId.
+          (c) => OrderItem(
+            productId: c.productId,
+            name: c.productName,
+            description: '',
+            imageUrl: c.productImageUrl,
+            quantity: c.quantity,
+            pricePerUnit: c.unitPrice + c.addonsTotal,
+          ),
+        )
+        .toList();
+
+    final order = OrderCardData.createPending(
+      chatId: chatId,
+      storeId: firstStoreId,
+      storeName: storeName,
+      buyerId: user.uid,
+      buyerName: user.displayName ?? 'Customer',
+      items: orderItems,
+      // TODO(backend): join from stores/{storeId}.defaultDeliveryDetails.
+      deliveryDetails: '',
+    );
+
+    OrderRepository().createOrder(order);
     _cart.clearCart();
 
     Navigator.pushReplacement(
@@ -78,8 +85,7 @@ class _CartPageState extends State<CartPage> {
           chatId: chatId,
           storeId: firstStoreId,
           storeName: storeName,
-          storeImage: '', // Blank defaults to the initials avatar 
-          initialMessage: message,
+          storeImage: '', // Blank defaults to the initials avatar
         ),
       ),
     );

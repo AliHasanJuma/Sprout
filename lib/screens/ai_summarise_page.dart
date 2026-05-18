@@ -3,6 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/serivces/groq_order_service.dart';
+import '../models/order_card_data.dart';
+import '../providers/order_repository.dart';
 
 class AiSummarisePage extends StatefulWidget {
   final String chatId;
@@ -165,6 +167,14 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
     }
   }
 
+  // TODO(refactor): the spec wants this page to consume the shared
+  // lib/shared/widgets/order_card.dart with `editable: true` so the AI view
+  // and the in-chat view share one widget. Today they share the data
+  // contract (OrderCardData) but not the visual implementation — the AI
+  // page keeps its existing layout. Pull the editable mode into OrderCard
+  // (quantity steppers, item-remove, delivery edit dialog) and replace this
+  // page's manual build with a single OrderCard(editable: true, ...) when
+  // the AI page is next touched.
   Future<void> _createOrderIntent() async {
     setState(() {
       _isLoading = true;
@@ -174,47 +184,62 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) throw Exception('User not logged in');
 
-      final itemsList = [];
-      for (int i = 0; i < _extractedItems.length; i++) {
-        if (_visible[i] == true) {
-          itemsList.add({
-            'name': _extractedItems[i]['name'],
-            'quantity': _quantities[i] ?? 1,
-            'price_per_unit': _extractedItems[i]['price_per_unit'],
-          });
+      // Resolve productId by name match against the store's products list so
+      // the order item points back at a real shelf record.
+      // TODO(backend): join via productId returned directly by the LLM so we
+      // do not have to match by display name (which can collide / drift).
+      String resolveProductId(String name) {
+        for (final doc in _storeProducts) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (data['name'] == name) return doc.id;
         }
+        return 'unknown_${name.hashCode}';
       }
 
-      await FirebaseFirestore.instance.collection('orderIntents').add({
-        'chatId': widget.chatId,
-        'buyerId': currentUser.uid,
-        'storeId': widget.storeId,
-        'storeName': widget.storeName,
-        'items': itemsList,
-        'totalPrice': _totalPrice,
-        'deliveryMethod': _deliveryMethod,
-        'deliveryArea': _deliveryArea,
-        'notes': _notes,
-        'status': 'requested',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final orderItems = <OrderItem>[];
+      for (int i = 0; i < _extractedItems.length; i++) {
+        if (_visible[i] != true) continue;
+        final raw = _extractedItems[i];
+        final name = (raw['name'] as String?) ?? 'Unknown';
+        orderItems.add(OrderItem(
+          productId: resolveProductId(name),
+          name: name,
+          // TODO(backend): pull description from products/shelves by productId.
+          description: '',
+          imageUrl: (raw['imageUrl'] as String?)?.isNotEmpty == true
+              ? raw['imageUrl'] as String
+              : null,
+          quantity: _quantities[i] ?? 1,
+          pricePerUnit: (raw['price_per_unit'] as num).toDouble(),
+        ));
+      }
 
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatId)
-          .collection('messages')
-          .add({
-        'text': '🛍️ **Order Request Created!**\n\nItems: ${itemsList.length}\nTotal: $_totalPrice BHD\nDelivery: $_deliveryMethod\n\nPlease check your order requests tab.',
-        'senderId': 'system',
-        'senderName': 'System',
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      // The AI-extracted delivery method/area/notes are the buyer-negotiated
+      // delivery for this specific order. The spec also references a seller
+      // default at stores/{storeId}.defaultDeliveryDetails — when that field
+      // is populated, the join should prefer the seller default.
+      // TODO(design): confirm whether AI-extracted delivery info or seller
+      // default wins when both exist.
+      final deliveryParts = <String>[
+        if (_deliveryMethod.isNotEmpty) 'Method: $_deliveryMethod',
+        if (_deliveryArea.isNotEmpty) 'Area: $_deliveryArea',
+        if (_notes.isNotEmpty) 'Notes: $_notes',
+      ];
+
+      final order = OrderCardData.createPending(
+        chatId: widget.chatId,
+        storeId: widget.storeId,
+        storeName: widget.storeName,
+        storeAvatarUrl: widget.storeImage.isEmpty ? null : widget.storeImage,
+        buyerId: currentUser.uid,
+        buyerName: currentUser.displayName ?? 'Customer',
+        items: orderItems,
+        deliveryDetails: deliveryParts.join('\n'),
+      );
+
+      OrderRepository().createOrder(order);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order request sent to seller!')),
-        );
         Navigator.pop(context);
       }
     } catch (e) {
