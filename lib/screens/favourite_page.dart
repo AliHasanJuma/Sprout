@@ -107,7 +107,7 @@ class FavouritePageState extends State<FavouritePage> with AutomaticKeepAliveCli
                   ? SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: Container(
-                        height: MediaQuery.of(context).size.height * 0.7,
+                        height: MediaQuery.of(context).size.height * 0.9,
                         alignment: Alignment.center,
                         child: _buildEmptyState(),
                       ),
@@ -137,8 +137,8 @@ class FavouritePageState extends State<FavouritePage> with AutomaticKeepAliveCli
           children: [
             Image.asset(
               'assets/icons/MG_favourite_list.png',
-              width: 120,
-              height: 120,
+              width: 160,
+              height: 160,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => const Icon(
                 Icons.favorite_border,
@@ -148,12 +148,12 @@ class FavouritePageState extends State<FavouritePage> with AutomaticKeepAliveCli
             ),
             const SizedBox(height: 24),
             const Text(
-              'Empty favourite list',
+              'No favorites yet',
               style: TextStyle(
                 fontFamily: 'SF Pro Display',
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF003E3B),
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
               ),
             ),
             const SizedBox(height: 8),

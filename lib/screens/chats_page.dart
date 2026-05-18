@@ -294,11 +294,46 @@ class _ChatsPageState extends State<ChatsPage> with AutomaticKeepAliveClientMixi
                             ? SingleChildScrollView(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 child: Container(
-                                  height: MediaQuery.of(context).size.height * 0.6,
+                                  height: MediaQuery.of(context).size.height * 0.7,
                                   alignment: Alignment.center,
-                                  child: const Text(
-                                    'No active chats.',
-                                    style: TextStyle(fontFamily: 'SF Pro Display', color: Color(0xFF9F9F9F)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'assets/icons/Chat.png',
+                                          width: 160,
+                                          height: 160,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, __, ___) => const Icon(
+                                            Icons.chat_bubble_outline,
+                                            size: 120,
+                                            color: Color(0xFF003E3B),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        const Text(
+                                          'No messages yet',
+                                          style: TextStyle(
+                                            fontFamily: 'SF Pro Display',
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                          'Your active conversations will appear here.\nSay hello and start a conversation!',
+                                          style: TextStyle(
+                                            fontFamily: 'SF Pro Display',
+                                            fontSize: 14,
+                                            color: Color(0xFF9F9F9F),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               )
