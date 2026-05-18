@@ -8,6 +8,8 @@ class CustomTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final TextEditingController? controller;
   final String? Function(String?)? validator;
+  final int? maxLength;
+  final bool countOnlyNonSpace; // NEW - to control counting method
 
   const CustomTextField({
     super.key,
@@ -17,21 +19,57 @@ class CustomTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.controller,
     this.validator,
+    this.maxLength,
+    this.countOnlyNonSpace = false, // NEW - defaults to false for backward compatibility
   });
+
+  // Helper to get the actual character count based on settings
+  int _getCharacterCount(String text) {
+    if (countOnlyNonSpace) {
+      // Count only non-space characters
+      return text.replaceAll(' ', '').length;
+    }
+    // Count all characters (including spaces)
+    return text.length;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'SF Pro Display',
-            fontSize: 16,
-            fontWeight: FontWeight.w300,
-            color: Color(0xFF003E3B),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 16,
+                fontWeight: FontWeight.w300,
+                color: Color(0xFF003E3B),
+              ),
+            ),
+            // Only show counter if maxLength is provided
+            if (maxLength != null && controller != null)
+              StreamBuilder<String?>(
+                stream: _getTextStream(),
+                builder: (context, snapshot) {
+                  final currentLength = _getCharacterCount(controller?.text ?? '');
+                  return Text(
+                    '$currentLength/$maxLength',
+                    style: TextStyle(
+                      fontFamily: 'SF Pro Display',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: currentLength >= maxLength! 
+                          ? Colors.red 
+                          : const Color(0xFF9F9F9F),
+                    ),
+                  );
+                },
+              ),
+          ],
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -39,6 +77,11 @@ class CustomTextField extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           validator: validator,
+          maxLength: maxLength,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) {
+            // Return null to hide the default Flutter counter
+            return null;
+          },
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: const TextStyle(color: Color(0xFFC3C3C3)),
@@ -61,5 +104,15 @@ class CustomTextField extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  // Helper to get text changes stream for real-time counter
+  Stream<String?> _getTextStream() async* {
+    if (controller != null) {
+      yield controller!.text;
+      await for (var _ in Stream.periodic(const Duration(milliseconds: 100))) {
+        yield controller!.text;
+      }
+    }
   }
 }

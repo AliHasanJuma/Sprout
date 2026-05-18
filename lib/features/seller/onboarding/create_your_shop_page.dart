@@ -53,20 +53,36 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
       return;
     }
 
-    // ── 2. NEW STRICT VALIDATION ──
-    // This Regex checks if there is at least one English OR Arabic letter.
-    final hasLetters = RegExp(r'[a-zA-Zأ-ي]'); 
-
-    if (!hasLetters.hasMatch(shopName) || shopName.length < 3) {
+    // ── 2. CHARACTER LIMIT VALIDATION ──
+    // Shop name: 3-50 characters
+    if (shopName.length < 3 || shopName.length > 50) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Shop name must contain letters and be at least 3 characters long.')),
+        const SnackBar(content: Text('Shop name must be between 3 and 50 characters')),
       );
       return;
     }
 
-    if (!hasLetters.hasMatch(bio) || bio.length < 10) {
+    // Bio: 10-200 characters
+    if (bio.length < 10 || bio.length > 200) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bio must contain letters and be at least 10 characters long.')),
+        const SnackBar(content: Text('Bio must be between 10 and 200 characters')),
+      );
+      return;
+    }
+
+    // This Regex checks if there is at least one English OR Arabic letter.
+    final hasLetters = RegExp(r'[a-zA-Zأ-ي]'); 
+
+    if (!hasLetters.hasMatch(shopName)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shop name must contain letters')),
+      );
+      return;
+    }
+
+    if (!hasLetters.hasMatch(bio)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bio must contain letters')),
       );
       return;
     }
@@ -96,14 +112,18 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
                 label: 'Shop Name',
                 hintText: 'Enter your shop name',
                 controller: _shopNameController,
+                maxLength: 50,
+                countOnlyNonSpace: true,
               ),
               const SizedBox(height: 16),
               CustomTextField(
                 label: 'Short Bio',
                 hintText: 'Enter a short and catchy Bio',
                 controller: _bioController,
+                maxLength: 200,
+                countOnlyNonSpace: true,
               ),
-              const SizedBox(height:70),
+              const SizedBox(height: 70),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
