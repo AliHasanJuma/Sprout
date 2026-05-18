@@ -69,7 +69,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       if (product.addons != null) {
         for (final addon in product.addons!) {
           if (selectedAddons.contains(addon['name'])) {
-            base += (addon['price'] as num).toDouble() * quantity;
+            base += ((addon['price'] as num?) ?? 0).toDouble() * quantity;
           }
         }
       }
@@ -81,7 +81,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       if (product.addons != null) {
         for (final addon in product.addons!) {
           if (selectedAddons.contains(addon['name'])) {
-            total += (addon['price'] as num).toDouble();
+            total += ((addon['price'] as num?) ?? 0).toDouble();
           }
         }
       }
@@ -291,8 +291,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 8),
                           ...product.addons!.map((addon) {
-                            final name = addon['name'] as String;
-                            final price = (addon['price'] as num).toDouble();
+                            final name = (addon['name'] as String?) ?? '';
+                            final price = ((addon['price'] as num?) ?? 0).toDouble();
                             final isChecked = selectedAddons.contains(name);
                             return CheckboxListTile(
                               contentPadding: EdgeInsets.zero,
