@@ -796,15 +796,16 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                     if (uid == null) return;
                     final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
                     
-                    if (isFav) {
-                      await userRef.update({
-                        'favouriteStoreIds': FieldValue.arrayRemove([store.id])
-                      });
-                    } else {
-                      await userRef.update({
-                        'favouriteStoreIds': FieldValue.arrayUnion([store.id])
-                      });
-                    }
+                    // ── Change .update() to a safe .set() with merge: true ──
+if (isFav) {
+  await userRef.set({
+    'favouriteStoreIds': FieldValue.arrayRemove([store.id])
+  }, SetOptions(merge: true)); // Creates the document if missing, updates if it exists!
+} else {
+  await userRef.set({
+    'favouriteStoreIds': FieldValue.arrayUnion([store.id])
+  }, SetOptions(merge: true));
+}
                   },
                   child: Container(
                     width: 40,

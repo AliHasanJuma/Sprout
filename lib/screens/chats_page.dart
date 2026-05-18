@@ -40,37 +40,42 @@ class _ChatsPageState extends State<ChatsPage> with AutomaticKeepAliveClientMixi
 
   // ── 3. THE HYBRID FETCH: Background Real-time Listener ──
   void _listenToChats() {
-    final uid = _user?.uid;
-    if (uid == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-
-    _chatSubscription = FirebaseFirestore.instance
-        .collection('chats')
-        .where('buyerId', isEqualTo: uid)
-        .orderBy('lastMessageTime', descending: true)
-        .snapshots()
-        .listen(
-      (snapshot) {
-        if (mounted) {
-          setState(() {
-            _chatDocs = snapshot.docs;
-            _isLoading = false;
-            _hasError = false;
-          });
-        }
-      },
-      onError: (error) {
-        if (mounted) {
-          setState(() {
-            _hasError = true;
-            _isLoading = false;
-          });
-        }
-      },
-    );
+  final uid = _user?.uid;
+  if (uid == null) {
+    if (mounted) setState(() => _isLoading = false);
+    return;
   }
+
+  // ── USING FILTER.OR TO FETCH BOTH BUYER AND SELLER CHATS ──
+  _chatSubscription = FirebaseFirestore.instance
+      .collection('chats')
+      .where(Filter.or(
+        Filter('buyerId', isEqualTo: uid),
+        Filter('sellerId', isEqualTo: uid), // Checks if current user is the store owner
+      ))
+      .orderBy('lastMessageTime', descending: true)
+      .snapshots()
+      .listen(
+    (snapshot) {
+      if (mounted) {
+        setState(() {
+          _chatDocs = snapshot.docs;
+          _isLoading = false;
+          _hasError = false;
+        });
+      }
+    },
+    onError: (error) {
+      print("Chat list error: $error");
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _isLoading = false;
+        });
+      }
+    },
+  );
+}
 
   // ── 4. PULL-TO-REFRESH HANDLER ──
   Future<void> _handleRefresh() async {
@@ -331,137 +336,149 @@ class _ChatsPageState extends State<ChatsPage> with AutomaticKeepAliveClientMixi
     );
   }
 
-  Widget _buildChatRow(BuildContext context, Map<String, dynamic> data, String chatId) {
-    final storeName = data['storeName'] ?? 'Unknown Store';
-    final storeImage = data['storeImage'] ?? '';
-    final lastMessage = data['lastMessage'] ?? '';
-    final timeAgo = _formatTime(data['lastMessageTime'] as Timestamp?);
-    final unreadCount = data['unreadCount'] ?? 0;
-    final storeId = data['storeId'] ?? '';
-    final isOnline = data['isOnline'] ?? false; 
+ Widget _buildChatRow(BuildContext context, Map<String, dynamic> data, String chatId) {
+  final uid = _user?.uid;
+  
+  // ── CHECK IF LOGGED-IN USER IS THE BUYER ──
+  final bool isBuyer = data['buyerId'] == uid;
 
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => InnerChatPage(
-            chatId: chatId,
-            storeId: storeId,
-            storeName: storeName,
-            storeImage: storeImage,
-          ),
+  // If buyer, show the store details. If seller, show the customer's details!
+  final displayOriginName = isBuyer 
+      ? (data['storeName'] ?? 'Unknown Store') 
+      : (data['buyerName'] ?? 'Customer');
+      
+  final displayImage = isBuyer 
+      ? (data['storeImage'] ?? '') 
+      : (data['buyerImage'] ?? '');
+
+  final lastMessage = data['lastMessage'] ?? '';
+  final timeAgo = _formatTime(data['lastMessageTime'] as Timestamp?);
+  final unreadCount = data['unreadCount'] ?? 0;
+  final storeId = data['storeId'] ?? '';
+  final isOnline = data['isOnline'] ?? false; 
+
+  return GestureDetector(
+    onTap: () => Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InnerChatPage(
+          chatId: chatId,
+          storeId: storeId,
+          storeName: data['storeName'] ?? 'Store', // Keep original store context for internal processing
+          storeImage: data['storeImage'] ?? '',
         ),
       ),
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 52,
-              height: 52,
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: const Color(0xFFCDEB45),
-                    backgroundImage: storeImage.isNotEmpty ? NetworkImage(storeImage) : null,
-                    child: storeImage.isEmpty
-                        ? Text(
-                            _getInitials(storeName),
-                            style: const TextStyle(
-                              fontFamily: 'SF Pro Display',
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF003E3B),
-                            ),
-                          )
-                        : null,
-                  ),
-                  if (isOnline)
-                    Positioned(
-                      bottom: 2,
-                      right: 2,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    storeName,
-                    style: const TextStyle(
-                      fontFamily: 'SF Pro Display',
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    lastMessage,
-                    style: const TextStyle(
-                      fontFamily: 'SF Pro Display',
-                      fontSize: 14,
-                      color: Color(0xFF9F9F9F),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    ),
+    behavior: HitTestBehavior.opaque,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: Stack(
               children: [
-                Text(
-                  timeAgo,
-                  style: const TextStyle(
-                    fontFamily: 'SF Pro Display',
-                    fontSize: 12,
-                    color: Color(0xFF9F9F9F),
-                  ),
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: const Color(0xFFCDEB45),
+                  backgroundImage: displayImage.isNotEmpty ? NetworkImage(displayImage) : null,
+                  child: displayImage.isEmpty
+                      ? Text(
+                          _getInitials(displayOriginName),
+                          style: const TextStyle(
+                            fontFamily: 'SF Pro Display',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF003E3B),
+          ),
+                        )
+                      : null,
                 ),
-                if (unreadCount > 0) ...[
-                  const SizedBox(height: 6),
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFCDEB45),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$unreadCount',
-                        style: const TextStyle(
-                          fontFamily: 'SF Pro Display',
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF003E3B),
-                        ),
+                if (isOnline)
+                  Positioned(
+                    bottom: 2,
+                    right: 2,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
                     ),
                   ),
-                ],
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayOriginName, // Shows Store Name to Buyer, and Customer Name to Seller!
+                  style: const TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  lastMessage,
+                  style: const TextStyle(
+                    fontFamily: 'SF Pro Display',
+                    fontSize: 14,
+                    color: Color(0xFF9F9F9F),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                timeAgo,
+                style: const TextStyle(
+                  fontFamily: 'SF Pro Display',
+                  fontSize: 12,
+                  color: Color(0xFF9F9F9F),
+                ),
+              ),
+              if (unreadCount > 0) ...[
+                const SizedBox(height: 6),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFCDEB45),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$unreadCount',
+                      style: const TextStyle(
+                        fontFamily: 'SF Pro Display',
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF003E3B),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
