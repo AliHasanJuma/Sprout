@@ -39,43 +39,71 @@ class _ChatsPageState extends State<ChatsPage> with AutomaticKeepAliveClientMixi
   }
 
   // ── 3. THE HYBRID FETCH: Background Real-time Listener ──
-  void _listenToChats() {
-  final uid = _user?.uid;
-  if (uid == null) {
-    if (mounted) setState(() => _isLoading = false);
-    return;
-  }
+  void _listenToChats() async {
+    final uid = _user?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
 
-  // ── USING FILTER.OR TO FETCH BOTH BUYER AND SELLER CHATS ──
-  _chatSubscription = FirebaseFirestore.instance
-      .collection('chats')
-      .where(Filter.or(
+    String? myStoreId;
+    try {
+      // 1. Fetch the user's profile to see if they have a storeId linked to their account
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        myStoreId = userData['storeId'];
+      }
+      
+      // 2. Fallback: Check the stores collection if ownerId is tracked there
+      if (myStoreId == null) {
+        final storeQuery = await FirebaseFirestore.instance
+            .collection('stores')
+            .where('ownerId', isEqualTo: uid)
+            .limit(1)
+            .get();
+        if (storeQuery.docs.isNotEmpty) {
+          myStoreId = storeQuery.docs.first.id;
+        }
+      }
+    } catch (e) {
+      print("Error fetching store credentials: $e");
+    }
+
+    // 3. Construct an OR query targeting buyerId OR your custom storeId
+    final chatQuery = FirebaseFirestore.instance.collection('chats').where(
+      Filter.or(
         Filter('buyerId', isEqualTo: uid),
-        Filter('sellerId', isEqualTo: uid), // Checks if current user is the store owner
-      ))
-      .orderBy('lastMessageTime', descending: true)
-      .snapshots()
-      .listen(
-    (snapshot) {
-      if (mounted) {
-        setState(() {
-          _chatDocs = snapshot.docs;
-          _isLoading = false;
-          _hasError = false;
-        });
-      }
-    },
-    onError: (error) {
-      print("Chat list error: $error");
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-          _isLoading = false;
-        });
-      }
-    },
-  );
-}
+        myStoreId != null 
+            ? Filter('storeId', isEqualTo: myStoreId)
+            : Filter('storeId', isEqualTo: 'no_store_placeholder'), // Prevents empty query crashes
+      )
+    );
+
+    _chatSubscription = chatQuery
+        .orderBy('lastMessageTime', descending: true)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (mounted) {
+          setState(() {
+            _chatDocs = snapshot.docs;
+            _isLoading = false;
+            _hasError = false;
+          });
+        }
+      },
+      onError: (error) {
+        print("Chat listing subscription failed: $error");
+        if (mounted) {
+          setState(() {
+            _hasError = true;
+            _isLoading = false;
+          });
+        }
+      },
+    );
+  }
 
   // ── 4. PULL-TO-REFRESH HANDLER ──
   Future<void> _handleRefresh() async {
