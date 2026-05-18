@@ -53,9 +53,6 @@ class _PhoneNumberScreenState extends State<PhoneNumberScreen> {
   }
 
   Future<void> _handleContinue() async {
-if (kDebugMode) {
-  await FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
-}
     String phoneNumber = _phoneController.text.replaceAll(' ', '');
     if (phoneNumber.length != 8) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -69,13 +66,11 @@ if (kDebugMode) {
     final nav = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
-    // Only for native iOS Simulator
-    if (!kIsWeb && kDebugMode && defaultTargetPlatform == TargetPlatform.iOS) {
-      await FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
-    }
+
 
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
+
         phoneNumber: fullNumber,
         verificationCompleted: (PhoneAuthCredential credential) async {
           // Auto-verification (mainly Android)
