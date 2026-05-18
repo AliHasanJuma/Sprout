@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
 import 'package:firebase_auth/firebase_auth.dart'; // Added for User ID
 import '../data/temp_data.dart';
 import '../models/cart_model.dart';
+import '../models/order_card_data.dart';
 import '../providers/cart_provider.dart';
+import '../providers/order_repository.dart';
 import '../pages/cart_page.dart';
 import 'inner_chat_page.dart';
 
@@ -505,20 +507,36 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     String instructions,
     double total,
   ) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return; // Must be logged in
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return; // Must be logged in
 
-    final buffer = StringBuffer();
-    buffer.writeln('🛒 New Order:');
-    buffer.writeln('Product: ${product.name}');
-    if (size != null) buffer.writeln('Size: $size');
-    buffer.writeln('Quantity: $quantity');
-    if (addons.isNotEmpty) buffer.writeln('Add-ons: ${addons.join(', ')}');
-    if (instructions.isNotEmpty) buffer.writeln('Instructions: $instructions');
-    buffer.writeln('Total: ${total.toStringAsFixed(1)} BD');
+    final String chatId = '${user.uid}_${widget.store.id}';
 
-    // ── CREATE THE SMART CHAT ID ──
-    final String chatId = '${uid}_${widget.store.id}';
+    // TODO(schema): once OrderItem carries size / add-ons / instructions,
+    // forward them here instead of dropping them on the floor.
+    final orderItem = OrderItem(
+      productId: product.id,
+      name: product.name,
+      description: product.description,
+      imageUrl: product.imagePath,
+      quantity: quantity,
+      pricePerUnit: product.price,
+    );
+
+    final order = OrderCardData.createPending(
+      chatId: chatId,
+      storeId: widget.store.id,
+      storeName: widget.store.name,
+      storeAvatarUrl: widget.store.logoPath,
+      buyerId: user.uid,
+      buyerName: user.displayName ?? 'Customer',
+      items: [orderItem],
+      // TODO(backend): join from stores/{storeId}.defaultDeliveryDetails
+      // once the seller-side editor lands.
+      deliveryDetails: '',
+    );
+
+    OrderRepository().createOrder(order);
 
     Navigator.push(
       context,
@@ -528,7 +546,6 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           storeId: widget.store.id,
           storeName: widget.store.name,
           storeImage: widget.store.logoPath,
-          initialMessage: buffer.toString().trim(),
         ),
       ),
     );
