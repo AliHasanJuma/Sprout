@@ -89,14 +89,15 @@ class _HomePageState extends State<HomePage> {
 
       for (var doc in storeSnap.docs) {
         final data = doc.data();
+        if (data['ownerId'] == uid) continue; // Hide the user's own shop
         final storeLat = (data['latitude'] ?? 0.0).toDouble();
         final storeLon = (data['longitude'] ?? 0.0).toDouble();
-        
+
         final calculatedDistance = _calculateDistance(userLat, userLon, storeLat, storeLon);
-        
+
         data['realDistanceKm'] = calculatedDistance;
         data['docId'] = doc.id;
-        
+
         sortedStores.add(data);
       }
 
@@ -462,7 +463,7 @@ class _HomePageState extends State<HomePage> {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
-                data['imageUrl'] ?? 'https://via.placeholder.com/80',
+                data['logoUrl'] ?? 'https://via.placeholder.com/80',
                 width: 80, height: 80, fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
               ),

@@ -388,9 +388,7 @@ class _SellerStorePageState extends State<SellerStorePage>
           _expandedIndex = isExpanded ? -1 : index;
         });
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+      child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -454,14 +452,12 @@ class _SellerStorePageState extends State<SellerStorePage>
                             ),
                           ),
                           const SizedBox(width: 4),
-                          AnimatedRotation(
-                            turns: isExpanded ? 0.5 : 0,
-                            duration: const Duration(milliseconds: 300),
-                            child: const Icon(
-                              Icons.keyboard_arrow_down,
-                              color: Color(0xFF9F9F9F),
-                              size: 22,
-                            ),
+                          Icon(
+                            isExpanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                            color: const Color(0xFF9F9F9F),
+                            size: 22,
                           ),
                         ],
                       ),
@@ -516,14 +512,7 @@ class _SellerStorePageState extends State<SellerStorePage>
               ],
             ),
 
-            AnimatedCrossFade(
-              firstChild: const SizedBox.shrink(),
-              secondChild: _buildExpandedSection(shelf),
-              crossFadeState: isExpanded
-                  ? CrossFadeState.showSecond
-                  : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 300),
-            ),
+            if (isExpanded) _buildExpandedSection(shelf),
           ],
         ),
       ),
