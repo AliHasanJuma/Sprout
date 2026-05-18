@@ -37,7 +37,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
+    _pageController = PageController(viewportFraction: 0.9);
     _cart.addListener(_onCartChanged);
     
     // ── THE FIX: Wait for Firebase to securely load the user from memory ──
@@ -89,14 +89,15 @@ class _HomePageState extends State<HomePage> {
 
       for (var doc in storeSnap.docs) {
         final data = doc.data();
+        if (data['ownerId'] == uid) continue; // Hide the user's own shop
         final storeLat = (data['latitude'] ?? 0.0).toDouble();
         final storeLon = (data['longitude'] ?? 0.0).toDouble();
-        
+
         final calculatedDistance = _calculateDistance(userLat, userLon, storeLat, storeLon);
-        
+
         data['realDistanceKm'] = calculatedDistance;
         data['docId'] = doc.id;
-        
+
         sortedStores.add(data);
       }
 
@@ -349,57 +350,54 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildBanner() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 170,
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: 3,
-              onPageChanged: (page) => setState(() => _bannerPage = page),
-              itemBuilder: (context, index) => GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => _bannerPages[index]),
+    return Column(
+      children: [
+        SizedBox(
+          height: 170,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: 3,
+            onPageChanged: (page) => setState(() => _bannerPage = page),
+            itemBuilder: (context, index) => GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => _bannerPages[index]),
+              ),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F7E7).withValues(alpha: 0.49),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F7E7).withValues(alpha: 0.49),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      'assets/images/home page widgets/0001.png',
-                      fit: BoxFit.cover, width: double.infinity,
-                    ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'assets/images/home page widgets/0001.png',
+                    fit: BoxFit.cover, width: double.infinity,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(3, (i) {
-              final isActive = i == _bannerPage;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: isActive ? 20 : 8,
-                height: 8,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: isActive ? Colors.black : Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(3, (i) {
+            final isActive = i == _bannerPage;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: isActive ? 20 : 8,
+              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: isActive ? Colors.black : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 
@@ -459,12 +457,21 @@ class _HomePageState extends State<HomePage> {
         margin: const EdgeInsets.only(right: 16),
         child: Column(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                data['imageUrl'] ?? 'https://via.placeholder.com/80',
-                width: 80, height: 80, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFDEDEDE),
+                  width: 0.7,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  data['logoUrl'] ?? 'https://via.placeholder.com/80',
+                  width: 80, height: 80, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
+                ),
               ),
             ),
             const SizedBox(height: 8),

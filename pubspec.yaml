@@ -93,6 +93,8 @@ flutter:
       - assets/images/category/
       - assets/images/home page widgets/
       - assets/Becpme a seller icons/
+      - assets/defualt banners/
+      - assets/UI icons package/SVG/File/
 
   fonts:
     - family: SF Pro Display

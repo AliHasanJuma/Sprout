@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import '../models/store_model.dart';
 
 class SellerService {
@@ -23,10 +24,10 @@ class SellerService {
     String bannerUrl = '';
 
     if (store.logoPath != null) {
-      logoUrl = await uploadImage(File(store.logoPath!), 'logos');
+      logoUrl = await uploadImage(store.logoPath!, 'logos');
     }
     if (store.bannerPath != null) {
-      bannerUrl = await uploadImage(File(store.bannerPath!), 'banners');
+      bannerUrl = await uploadImage(store.bannerPath!, 'banners');
     }
 
     // Save to Firestore
@@ -87,12 +88,12 @@ class SellerService {
     // Check if paths are local files or already Firebase URLs
     String logoUrl = store.logoPath ?? '';
     if (logoUrl.isNotEmpty && !logoUrl.startsWith('http')) {
-      logoUrl = await uploadImage(File(logoUrl), 'logos');
+      logoUrl = await uploadImage(logoUrl, 'logos');
     }
 
     String bannerUrl = store.bannerPath ?? '';
     if (bannerUrl.isNotEmpty && !bannerUrl.startsWith('http')) {
-      bannerUrl = await uploadImage(File(bannerUrl), 'banners');
+      bannerUrl = await uploadImage(bannerUrl, 'banners');
     }
 
     await _db.collection('stores').doc(store.id).update({
@@ -128,14 +129,32 @@ class SellerService {
   }
 
   // ── 5. UPLOAD IMAGE TO FIREBASE STORAGE ──
-  Future<String> uploadImage(File file, String folderName) async {
+  // Accepts either a bundled asset path (e.g. 'assets/...') or a filesystem
+  // path. Asset paths are read from rootBundle and uploaded as bytes, since
+  // they don't exist on disk and would fail putFile()'s existsSync assertion.
+  Future<String> uploadImage(String path, String folderName) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception("User not logged in");
 
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final isAsset = path.startsWith('assets/');
+    final extension = path.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+    final fileName = '$timestamp.$extension';
     final ref = _storage.ref().child('stores/$uid/$folderName/$fileName');
-    
-    await ref.putFile(file);
+
+    if (isAsset) {
+      final bytes = await rootBundle.load(path);
+      await ref.putData(
+        bytes.buffer.asUint8List(),
+        SettableMetadata(contentType: 'image/$extension'),
+      );
+    } else {
+      final file = File(path);
+      if (!await file.exists()) {
+        throw Exception('Image file no longer exists at $path');
+      }
+      await ref.putFile(file);
+    }
     return await ref.getDownloadURL(); // Returns the public https:// link
   }
 }

@@ -1,8 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart'; // ── NEW IMPORT ──
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/custom_button.dart';
@@ -31,43 +32,70 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
 
   String? _existingLogoPath;
   String? _existingBannerPath;
+  String? _selectedDefaultBanner;
+
+  static const _defaultBanners = [
+    'assets/defualt banners/dv001.png',
+    'assets/defualt banners/dv002.png',
+    'assets/defualt banners/dv003.png',
+    'assets/defualt banners/dv004.png',
+  ];
 
   @override
   void initState() {
     super.initState();
     _existingLogoPath = widget.draft.logoPath;
-    _existingBannerPath = widget.draft.bannerPath;
+    final existingBanner = widget.draft.bannerPath;
+    if (existingBanner != null && _defaultBanners.contains(existingBanner)) {
+      _selectedDefaultBanner = existingBanner;
+    } else {
+      _existingBannerPath = existingBanner;
+    }
   }
 
-  // ── UPDATED: SECURE LOCAL SAVING ──
   Future<void> _pickImage(bool isLogo) async {
     final picker = ImagePicker();
     final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
-      // 1. Get the app's safe document directory
       final directory = await getApplicationDocumentsDirectory();
-      
-      // 2. Create a unique file name so images don't overwrite each other
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${isLogo ? 'logo' : 'banner'}.jpg';
-      
-      // 3. Copy the file from the temporary cache to the safe directory
       final savedImage = await File(pickedFile.path).copy('${directory.path}/$fileName');
 
-      // 4. Update the UI
       setState(() {
         if (isLogo) {
           _logoImage = savedImage;
         } else {
           _bannerImage = savedImage;
+          _selectedDefaultBanner = null;
         }
+      });
+    }
+  }
+
+  Future<void> _chooseDefaultBanner() async {
+    final selected = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _DefaultBannerSelectionPage(
+          banners: _defaultBanners,
+          selectedBanner: _selectedDefaultBanner,
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      setState(() {
+        _selectedDefaultBanner = selected;
+        _bannerImage = null;
+        _existingBannerPath = null;
       });
     }
   }
 
   bool get _canContinue {
     final hasLogo = _logoImage != null || _existingLogoPath != null;
-    final hasBanner = _bannerImage != null || _existingBannerPath != null;
+    final hasBanner = _bannerImage != null || _existingBannerPath != null || _selectedDefaultBanner != null;
     return hasLogo && hasBanner;
   }
 
@@ -80,9 +108,8 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
     }
 
     final logoPath = _logoImage?.path ?? _existingLogoPath;
-    final bannerPath = _bannerImage?.path ?? _existingBannerPath;
+    final bannerPath = _selectedDefaultBanner ?? _bannerImage?.path ?? _existingBannerPath;
 
-    // Save the safe local file paths to the draft in RAM
     final updated = widget.draft.copyWith(
       logoPath: logoPath,
       bannerPath: bannerPath,
@@ -100,7 +127,6 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
     );
   }
 
-  // Prevents crashes by checking if the image is from the web or the local phone
   Widget _buildImagePreview(File? newFile, String? existingPath, double width, double height) {
     if (newFile != null) {
       return Image.file(newFile, width: width, height: height, fit: BoxFit.cover);
@@ -108,21 +134,23 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
     if (existingPath != null) {
       if (existingPath.startsWith('http')) {
         return Image.network(existingPath, width: width, height: height, fit: BoxFit.cover);
+      } else if (_defaultBanners.contains(existingPath)) {
+        return Image.asset(existingPath, width: width, height: height, fit: BoxFit.cover);
       } else {
         return Image.file(File(existingPath), width: width, height: height, fit: BoxFit.cover);
       }
     }
-    return const SizedBox.shrink(); 
+    return const SizedBox.shrink();
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasBannerPreview = _bannerImage != null || _existingBannerPath != null || _selectedDefaultBanner != null;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: SellerAppBar(
-        title: widget.isEditing
-            ? 'Edit store logo and banner'
-            : 'Customize your Store',
+        title: widget.isEditing ? 'Edit store logo and banner' : 'Customize your Store',
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -191,11 +219,24 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
                 ),
               ),
               const SizedBox(height: 16),
-              _UploadButton(
-                hasImage: _bannerImage != null || _existingBannerPath != null,
-                onTap: () => _pickImage(false),
+              Row(
+                children: [
+                  Expanded(
+                    child: _UploadButton(
+                      hasImage: _bannerImage != null || (_existingBannerPath != null),
+                      onTap: () => _pickImage(false),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ChooseDefaultButton(
+                      hasSelection: _selectedDefaultBanner != null,
+                      onTap: _chooseDefaultBanner,
+                    ),
+                  ),
+                ],
               ),
-              if (_bannerImage != null || _existingBannerPath != null) ...[
+              if (hasBannerPreview) ...[
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
@@ -206,7 +247,12 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: _buildImagePreview(_bannerImage, _existingBannerPath, double.infinity, 100),
+                    child: _buildImagePreview(
+                      _bannerImage,
+                      _selectedDefaultBanner ?? _existingBannerPath,
+                      double.infinity,
+                      100,
+                    ),
                   ),
                 ),
               ],
@@ -226,6 +272,81 @@ class _CustomizeStorePageState extends State<CustomizeStorePage> {
   }
 }
 
+class _DefaultBannerSelectionPage extends StatefulWidget {
+  final List<String> banners;
+  final String? selectedBanner;
+
+  const _DefaultBannerSelectionPage({
+    required this.banners,
+    this.selectedBanner,
+  });
+
+  @override
+  State<_DefaultBannerSelectionPage> createState() => _DefaultBannerSelectionPageState();
+}
+
+class _DefaultBannerSelectionPageState extends State<_DefaultBannerSelectionPage> {
+  late String? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.selectedBanner;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: SellerAppBar(title: 'Customize your Store'),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(32, 4, 32, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Choose a default',
+                style: TextStyle(
+                  fontFamily: 'SF Pro Display',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.secondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ...widget.banners.map((banner) {
+                final isSelected = _selected == banner;
+                return GestureDetector(
+                  onTap: () => Navigator.pop(context, banner),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: isSelected
+                          ? Border.all(color: Colors.grey.shade400, width: 2.5)
+                          : null,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(isSelected ? 10 : 12),
+                      child: Image.asset(
+                        banner,
+                        width: double.infinity,
+                        height: 150,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _UploadButton extends StatelessWidget {
   final bool hasImage;
   final VoidCallback onTap;
@@ -237,7 +358,6 @@ class _UploadButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 153,
         height: 44,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
@@ -255,6 +375,48 @@ class _UploadButton extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               hasImage ? 'Photo selected' : 'Upload a photo',
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChooseDefaultButton extends StatelessWidget {
+  final bool hasSelection;
+  final VoidCallback onTap;
+
+  const _ChooseDefaultButton({required this.hasSelection, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.primary, width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SvgPicture.asset(
+              'assets/UI icons package/SVG/File/Note_Search.svg',
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(AppColors.secondary, BlendMode.srcIn),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              hasSelection ? 'Default selected' : 'Choose a default',
               style: const TextStyle(
                 fontFamily: 'SF Pro Display',
                 fontSize: 12,
