@@ -5,6 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/serivces/groq_order_service.dart';
 import '../models/order_card_data.dart';
 import '../providers/order_repository.dart';
+import '../providers/order_repository.dart';
+import '../models/order_card_data.dart';
+
 
 class AiSummarisePage extends StatefulWidget {
   final String chatId;
@@ -27,6 +30,7 @@ class AiSummarisePage extends StatefulWidget {
 class _AiSummarisePageState extends State<AiSummarisePage> {
   bool _isLoading = true;
   String? _error;
+  final OrderRepository _orderRepo = OrderRepository();
   
   List<Map<String, dynamic>> _extractedItems = [];
   double _totalPrice = 0;
@@ -184,62 +188,61 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) throw Exception('User not logged in');
 
-      // Resolve productId by name match against the store's products list so
-      // the order item points back at a real shelf record.
-      // TODO(backend): join via productId returned directly by the LLM so we
-      // do not have to match by display name (which can collide / drift).
-      String resolveProductId(String name) {
-        for (final doc in _storeProducts) {
-          final data = doc.data() as Map<String, dynamic>;
-          if (data['name'] == name) return doc.id;
-        }
-        return 'unknown_${name.hashCode}';
-      }
+      // Get buyer name
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+      final buyerName = userDoc.data()?['displayName'] ?? currentUser.email ?? 'Customer';
 
+      // Build OrderItem list from extracted items
       final orderItems = <OrderItem>[];
       for (int i = 0; i < _extractedItems.length; i++) {
-        if (_visible[i] != true) continue;
-        final raw = _extractedItems[i];
-        final name = (raw['name'] as String?) ?? 'Unknown';
-        orderItems.add(OrderItem(
-          productId: resolveProductId(name),
-          name: name,
-          // TODO(backend): pull description from products/shelves by productId.
-          description: '',
-          imageUrl: (raw['imageUrl'] as String?)?.isNotEmpty == true
-              ? raw['imageUrl'] as String
-              : null,
-          quantity: _quantities[i] ?? 1,
-          pricePerUnit: (raw['price_per_unit'] as num).toDouble(),
-        ));
+        if (_visible[i] == true) {
+          orderItems.add(OrderItem(
+            productId: '', // Will be populated by backend from shelves collection
+            name: _extractedItems[i]['name'],
+            description: _notes.isNotEmpty ? _notes : 'No additional notes',
+            imageUrl: _extractedItems[i]['imageUrl'],
+            quantity: _quantities[i] ?? 1,
+            pricePerUnit: _extractedItems[i]['price_per_unit'],
+          ));
+        }
       }
 
-      // The AI-extracted delivery method/area/notes are the buyer-negotiated
-      // delivery for this specific order. The spec also references a seller
-      // default at stores/{storeId}.defaultDeliveryDetails — when that field
-      // is populated, the join should prefer the seller default.
-      // TODO(design): confirm whether AI-extracted delivery info or seller
-      // default wins when both exist.
-      final deliveryParts = <String>[
-        if (_deliveryMethod.isNotEmpty) 'Method: $_deliveryMethod',
-        if (_deliveryArea.isNotEmpty) 'Area: $_deliveryArea',
-        if (_notes.isNotEmpty) 'Notes: $_notes',
-      ];
-
-      final order = OrderCardData.createPending(
+      // Create order using OrderCardData (similar to before, but using the model)
+      final orderData = OrderCardData.createPending(
         chatId: widget.chatId,
         storeId: widget.storeId,
         storeName: widget.storeName,
-        storeAvatarUrl: widget.storeImage.isEmpty ? null : widget.storeImage,
         buyerId: currentUser.uid,
-        buyerName: currentUser.displayName ?? 'Customer',
+        buyerName: buyerName,
         items: orderItems,
-        deliveryDetails: deliveryParts.join('\n'),
+        deliveryDetails: 'Method: $_deliveryMethod\nArea: $_deliveryArea',
       );
 
-      OrderRepository().createOrder(order);
+      // Save directly to Firestore using orderId as document ID
+      await FirebaseFirestore.instance
+          .collection('orderIntents')
+          .doc(orderData.orderId)
+          .set(orderData.toMap());
+
+      // Add a system message to the chat
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .add({
+        'text': '🛍️ **Order Request Created!**\n\nItems: ${orderItems.length}\nTotal: ${orderData.totalPrice} BHD\nDelivery: $_deliveryMethod',
+        'senderId': 'system',
+        'senderName': 'System',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order request sent to seller!')),
+        );
         Navigator.pop(context);
       }
     } catch (e) {

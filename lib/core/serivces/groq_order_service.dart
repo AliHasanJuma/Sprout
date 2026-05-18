@@ -108,7 +108,7 @@ Return ONLY valid JSON. No other text. Format:
     }
   ], 
   "total_price": number, 
-  "delivery_method": "pickup/courier", 
+  "delivery_method": "customerPickup/localDelivery/publicMeetup", 
   "delivery_area": "area", 
   "notes": "instructions"
 }''',
