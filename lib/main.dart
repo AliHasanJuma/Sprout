@@ -5,10 +5,12 @@ import 'features/auth/splash_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
+// ── NEW APP CHECK IMPORT ──
+import 'package:firebase_app_check/firebase_app_check.dart'; 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // ── 2. ADDED ORIENTATION LOCK ──
   // This locks the entire app to portrait mode globally
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -17,6 +19,12 @@ void main() async {
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // ── NEW APP CHECK ACTIVATION ──
+  // This forces the emulator to generate a debug token so Firebase trusts it
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.debug,
   );
 
   runApp(const MyApp());
@@ -43,7 +51,7 @@ class MyApp extends StatelessWidget {
           foregroundColor: Colors.white,
         ),
       ),
-      home: const SplashScreen(), // Your Flutter splash screen
+      home: const SplashScreen(), 
     );
   }
 }
