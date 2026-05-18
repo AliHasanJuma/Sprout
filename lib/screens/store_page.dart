@@ -577,51 +577,87 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                 const SizedBox(height: 16),
 
                 StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('products')
-                      .where('storeId', isEqualTo: store.id)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
+  stream: FirebaseFirestore.instance
+      .collection('shelves')
+      .where('storeId', isEqualTo: store.id)
+      .snapshots(),
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF003E3B)));
+    }
+
+    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(
+          child: Text(
+            'No products available yet.',
+            style: TextStyle(color: Color(0xFF9F9F9F), fontFamily: 'SF Pro Display'),
+          ),
+        ),
+      );
+    }
+
+    final productDocs = snapshot.data!.docs;
+
+    return Column(
+      children: List.generate(productDocs.length, (index) {
+        final data = productDocs[index].data() as Map<String, dynamic>;
+        
+        // ── 1. EXTRACT PATHS FROM PHOTOPATHS ARRAY ──
+        String resolvedImagePath = 'https://via.placeholder.com/150';
+        if (data['photoPaths'] != null && data['photoPaths'] is List && (data['photoPaths'] as List).isNotEmpty) {
+          resolvedImagePath = data['photoPaths'][0].toString();
+        } else if (data['image'] != null) {
+          resolvedImagePath = data['image'].toString();
+        }
+
+        // ── 2. ISOLATE AND RE-TYPE ADDONS ENTIRELY BEFORE MODEL PARSING ──
+        final rawAddons = data['addOns'] ?? data['addons'];
+        List<Map<String, dynamic>>? parsedAddons;
+        
+        if (rawAddons != null && rawAddons is List) {
+          parsedAddons = List<Map<String, dynamic>>.from(
+            rawAddons.map((item) {
+              if (item is Map) {
+                return Map<String, dynamic>.from(item);
+              }
+              return <String, dynamic>{};
+            }),
+          );
+        }
+
+        return _buildExpandableProductCard(
+          Product(
+            id: productDocs[index].id,
+            name: data['name'] ?? 'Unknown Product',
+            description: data['description'] ?? '',
+            price: (data['price'] ?? 0.0).toDouble(),
+            imagePath: resolvedImagePath,
+            allergens: data['allergens'],
+            weight: data['weight'],
+            addons: parsedAddons, // Directly passes the strictly compiled typed list
+            
+            ingredients: data['ingredients'] != null && data['ingredients'] is List
+                ? (data['ingredients'] as List).map((item) => item.toString()).toList()
+                : null,
+                
+            sizes: data['sizes'] != null && data['sizes'] is List
+                ? (data['sizes'] as List).map((item) {
+                    if (item is Map) {
+                      return item['size']?.toString() ?? '';
                     }
-
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 32),
-                        child: Center(
-                          child: Text(
-                            'No products available yet.',
-                            style: TextStyle(color: Color(0xFF9F9F9F), fontFamily: 'SF Pro Display'),
-                          ),
-                        ),
-                      );
-                    }
-
-                    final productDocs = snapshot.data!.docs;
-
-                    return Column(
-                      children: List.generate(productDocs.length, (index) {
-                        final data = productDocs[index].data() as Map<String, dynamic>;
-                        
-                        final product = Product(
-                          id: productDocs[index].id,
-                          name: data['name'] ?? 'Unknown Product',
-                          description: data['description'] ?? '',
-                          price: (data['price'] ?? 0.0).toDouble(),
-                          imagePath: data['imageUrl'] ?? 'https://via.placeholder.com/150',
-                          ingredients: data['ingredients'] != null ? List<String>.from(data['ingredients']) : null,
-                          allergens: data['allergens'],
-                          weight: data['weight'],
-                          sizes: data['sizes'] != null ? List<String>.from(data['sizes']) : null,
-                          addons: data['addons'] != null ? List<Map<String, dynamic>>.from(data['addons']) : null,
-                        );
-
-                        return _buildExpandableProductCard(product, store, index);
-                      }),
-                    );
-                  },
-                ),
+                    return item.toString();
+                  }).where((element) => element.isNotEmpty).toList()
+                : null,
+          ),
+          store,
+          index,
+        );
+      }),
+    );
+  },
+),
                 
                 const SizedBox(height: 32),
               ],
