@@ -32,7 +32,7 @@ class _CartPageState extends State<CartPage> {
     if (mounted) setState(() {});
   }
 
-  void _sendCartToChat() {
+  Future<void> _sendCartToChat() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return; // Failsafe
 
@@ -45,7 +45,14 @@ class _CartPageState extends State<CartPage> {
     final firstItems = byStore[firstStoreId]!;
     final storeName = firstItems.first.storeName;
 
-    final String chatId = '${user.uid}_$firstStoreId';
+    // Use the most recently active thread between this buyer + store so
+    // post-cancellation "Start new chat" threads receive the next order,
+    // not the closed/cancelled chat that came before.
+    final String chatId = await OrderRepository().findOrCreateLatestChatId(
+      buyerId: user.uid,
+      storeId: firstStoreId,
+    );
+    if (!mounted) return;
 
     final orderItems = firstItems
         .map(

@@ -93,14 +93,20 @@ class _BuyerPickupCodePageState extends State<BuyerPickupCodePage> {
                 ),
               ),
               const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: OtpInput(
-                  key: _otpKey,
-                  length: 4,
-                  boxWidth: 60,
-                  boxHeight: 64,
-                  onCompleted: _onCompleted,
+              // Reference image shows tightly grouped 4 boxes (~12 px gap),
+              // not spread across the full screen. Wrap in a narrow,
+              // centered SizedBox so spaceBetween only has ~36 px of slack
+              // to distribute (3 gaps of ~12 each).
+              Center(
+                child: SizedBox(
+                  width: 260,
+                  child: OtpInput(
+                    key: _otpKey,
+                    length: 4,
+                    boxWidth: 56,
+                    boxHeight: 60,
+                    onCompleted: _onCompleted,
+                  ),
                 ),
               ),
               if (_error != null) ...[

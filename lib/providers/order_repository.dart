@@ -61,6 +61,52 @@ class OrderRepository extends ChangeNotifier {
     _subs.remove(chatId);
   }
 
+  // ── Chat routing helpers ────────────────────────────────────────────
+
+  /// Returns the chatId of the most recently active thread between this
+  /// buyer + store, or generates a fresh timestamped chatId when no
+  /// thread exists yet. Used by the cart and the store "Chat" button so
+  /// follow-on actions land in the LATEST chat — important after the
+  /// buyer cancels an order and taps "Start new chat", because the
+  /// pre-existing closed thread should be left alone.
+  ///
+  /// Filters in memory by storeId so we only need a single-field index
+  /// on `buyerId`. Skips terminal chats by checking the latest order's
+  /// status would require ordering by lastMessageTime instead — for now
+  /// we trust the "newest by lastMessageTime" heuristic.
+  Future<String> findOrCreateLatestChatId({
+    required String buyerId,
+    required String storeId,
+  }) async {
+    try {
+      final qs = await _db
+          .collection('chats')
+          .where('buyerId', isEqualTo: buyerId)
+          .get();
+      final matching = qs.docs
+          .where((d) => (d.data()['storeId'] as String?) == storeId)
+          .toList()
+        ..sort((a, b) {
+          final aTs = a.data()['lastMessageTime'] as Timestamp?;
+          final bTs = b.data()['lastMessageTime'] as Timestamp?;
+          if (aTs == null && bTs == null) return 0;
+          if (aTs == null) return 1;
+          if (bTs == null) return -1;
+          return bTs.compareTo(aTs);
+        });
+      if (matching.isNotEmpty) return matching.first.id;
+    } catch (e) {
+      debugPrint('OrderRepository.findOrCreateLatestChatId failed: $e');
+    }
+    return newChatId(buyerId: buyerId, storeId: storeId);
+  }
+
+  /// Always returns a fresh timestamped chatId. Used by Quick Order so
+  /// every quick order spawns its own dedicated thread, never reusing a
+  /// running conversation between this buyer + store.
+  String newChatId({required String buyerId, required String storeId}) =>
+      '${buyerId}_${storeId}_${DateTime.now().millisecondsSinceEpoch}';
+
   // ── Sync reads from the in-memory cache ─────────────────────────────
 
   List<OrderCardData> get orders => List.unmodifiable(_orders.values);
@@ -106,11 +152,30 @@ class OrderRepository extends ChangeNotifier {
   /// Persist a new order. The local cache is updated immediately so the
   /// writing device's UI responds without waiting for Firestore. The
   /// other device receives the order via its own snapshot listener.
+  ///
+  /// Also upserts the corresponding `chats/{chatId}` doc so the seller's
+  /// chat list (which filters by `storeId` and orders by `lastMessageTime`)
+  /// picks up brand-new threads — Quick Order in particular spawns a fresh
+  /// chatId that has never had a message sent in it, so without this write
+  /// the seller would never see the order land in their inbox.
   Future<void> createOrder(OrderCardData order) async {
     _orders[order.orderId] = order;
     notifyListeners();
     try {
-      await _db.collection('orders').doc(order.orderId).set(order.toMap());
+      await Future.wait([
+        _db.collection('orders').doc(order.orderId).set(order.toMap()),
+        _db.collection('chats').doc(order.chatId).set({
+          'buyerId': order.buyerId,
+          'buyerName': order.buyerName,
+          'storeId': order.storeId,
+          'storeName': order.storeName,
+          // chats_page.dart reads `storeImage`; OrderCardData carries it
+          // as `storeAvatarUrl`. Map the field name here.
+          'storeImage': order.storeAvatarUrl ?? '',
+          'lastMessage': '🛒 New order',
+          'lastMessageTime': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)),
+      ]);
     } catch (e) {
       debugPrint('OrderRepository.createOrder failed: $e');
       // TODO(backend): surface failures to the UI and add retry / offline queue.

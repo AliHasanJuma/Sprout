@@ -71,7 +71,11 @@ class OtpInputState extends State<OtpInput> {
     }
     final full = value;
     widget.onChanged?.call(full);
-    if (full.length == widget.length && !full.contains('')) {
+    // Every box has maxLength: 1, so when the joined string equals widget.length
+    // every position holds exactly one digit and the input is complete.
+    // (Don't use `!full.contains('')` — `String.contains('')` is always true.)
+    final allFilled = _controllers.every((c) => c.text.length == 1);
+    if (full.length == widget.length && allFilled) {
       widget.onCompleted?.call(full);
     }
   }
