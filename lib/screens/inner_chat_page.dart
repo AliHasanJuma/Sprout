@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/constants/app_colors.dart';
 import '../data/temp_data.dart';
+import '../models/order_card_data.dart';
+import '../providers/order_repository.dart';
+import '../shared/widgets/order_card.dart';
 import 'ai_summarise_page.dart';
+import 'buyer_pickup_code_page.dart';
+import 'seller_order_pickup_page.dart';
 import 'store_page.dart';
 import '../shared/widgets/order_status_card.dart';
 
@@ -30,21 +36,55 @@ class InnerChatPage extends StatefulWidget {
 class _InnerChatPageState extends State<InnerChatPage> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
-  // Order status variables
+
+  // Legacy order-status (Firestore orderIntents) state — kept for backwards
+  // compat with chats that already created an order under the old schema.
   bool _hasActiveOrder = false;
   Map<String, dynamic>? _activeOrder;
   bool _isLoadingOrder = true;
-  
+
+  // New order-card source. Synchronous in-memory mock until backend lands.
+  final OrderRepository _orderRepo = OrderRepository();
+
+  /// Most recent order for this chat (any status, including terminal so
+  /// cancelled / rejected / completed cards remain visible until the buyer
+  /// starts a new chat thread).
+  OrderCardData? get _latestNewOrder =>
+      _orderRepo.latestForChat(widget.chatId);
+
+  /// TODO(backend): replace this with a real seller-vs-buyer role lookup
+  /// (e.g. compare current uid against stores/{storeId}.ownerId). Today we
+  /// just check whether the logged-in user IS the order's buyer.
+  bool _isBuyerOf(OrderCardData order) => _user?.uid == order.buyerId;
+
   // ── NEW: Lock the live chat stream in memory ──
   late Stream<QuerySnapshot> _messagesStream;
-  
+
   User? get _user => FirebaseAuth.instance.currentUser;
+
+  /// Heuristic: the chatId is built as `{buyerId}_{storeId}[_{millis}]`, so
+  /// whoever is not the buyer in this chat is the seller. Used to gate
+  /// seller-side UI (no AI summarise, no buyer-profile navigation).
+  bool get _isSeller {
+    final uid = _user?.uid;
+    if (uid == null) return false;
+    final trueBuyerId = widget.chatId.split('_')[0];
+    return uid != trueBuyerId;
+  }
+
+  /// Populated for the seller view with the buyer's display name from
+  /// `chats/{chatId}.buyerName`. Buyers don't need this — they already
+  /// see the store name passed in via widget.storeName.
+  String? _otherPartyName;
 
   @override
   void initState() {
     super.initState();
+    _orderRepo.addListener(_onOrderRepoChanged);
+    // Live-sync orders for this chat thread across buyer + seller devices.
+    _orderRepo.subscribeToChat(widget.chatId);
     _checkForActiveOrder();
+    _loadOtherPartyName();
 
     // ── THE FIX: Initialize the stream exactly ONCE when the page opens ──
     // Now, opening the keyboard won't destroy and restart your chat connection!
@@ -64,9 +104,15 @@ class _InnerChatPageState extends State<InnerChatPage> {
 
   @override
   void dispose() {
+    _orderRepo.removeListener(_onOrderRepoChanged);
+    _orderRepo.unsubscribeFromChat(widget.chatId);
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onOrderRepoChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _checkForActiveOrder() async {
@@ -107,8 +153,82 @@ class _InnerChatPageState extends State<InnerChatPage> {
     _checkForActiveOrder();
   }
 
-  void _startNewChat() {
-    final newChatId = '${_user?.uid}_${widget.storeId}_${DateTime.now().millisecondsSinceEpoch}';
+  /// One-shot fetch of the buyer's display name from `chats/{chatId}` so the
+  /// seller-side topbar can show who they're talking to. No-op for the buyer
+  /// view, which already has the store name from widget params.
+  Future<void> _loadOtherPartyName() async {
+    if (!_isSeller) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _otherPartyName = (doc.data()?['buyerName'] as String?) ?? 'Buyer';
+      });
+    } catch (e) {
+      debugPrint('InnerChatPage._loadOtherPartyName failed: $e');
+    }
+  }
+
+  /// Buyer-only action: tap on the avatar / name in the topbar to open the
+  /// seller's store page. Fetches the full store doc from Firestore so the
+  /// StorePage gets a complete Store object (banner, bio, rating, etc.).
+  Future<void> _openSellerStore() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('stores')
+          .doc(widget.storeId)
+          .get();
+      if (!mounted) return;
+      final data = doc.data() ?? const <String, dynamic>{};
+      final store = Store(
+        id: widget.storeId,
+        name: (data['name'] as String?) ?? widget.storeName,
+        description: (data['bio'] ?? data['description'] ?? '') as String,
+        category: (data['category'] as String?) ?? 'General',
+        imagePath:
+            (data['bannerPath'] ?? data['imageUrl'] ?? '') as String,
+        logoPath: (data['logoPath'] ??
+            data['logoUrl'] ??
+            widget.storeImage) as String,
+        rating: ((data['rating'] ?? 0.0) as num).toDouble(),
+        distanceKm: ((data['realDistanceKm'] ?? 0.0) as num).toDouble(),
+        products: const [],
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => StorePage(store: store)),
+      );
+    } catch (e) {
+      debugPrint('InnerChatPage._openSellerStore failed: $e');
+    }
+  }
+
+  Future<void> _startNewChat() async {
+    final uid = _user?.uid;
+    if (uid == null) return;
+    final newChatId = _orderRepo.newChatId(
+      buyerId: uid,
+      storeId: widget.storeId,
+    );
+    // Stamp the new chat doc immediately so `findOrCreateLatestChatId`
+    // discovers it the next time the buyer comes back via the store
+    // "Chat" button or the cart — even before any message is sent.
+    await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(newChatId)
+        .set({
+      'buyerId': uid,
+      'storeId': widget.storeId,
+      'storeName': widget.storeName,
+      'storeImage': widget.storeImage,
+      'lastMessage': '',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -292,6 +412,14 @@ class _InnerChatPageState extends State<InnerChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final newOrder = _latestNewOrder;
+    final hasNewOrder = newOrder != null;
+    final hasLegacy = !hasNewOrder && _hasActiveOrder && _activeOrder != null;
+    final showInput = !hasNewOrder && !_hasActiveOrder;
+
+    final insideActions = hasNewOrder ? _insideActionsFor(newOrder) : null;
+    final outsideAction = hasNewOrder ? _outsideActionFor(newOrder) : null;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -299,14 +427,14 @@ class _InnerChatPageState extends State<InnerChatPage> {
           children: [
             _buildTopBar(),
             const Divider(height: 1, color: Color(0xFFEEEEEE)),
-            
-            // Order status card
-            if (_isLoadingOrder)
+
+            // Legacy loading + top legacy card kept only when no new order.
+            if (!hasNewOrder && _isLoadingOrder)
               const Padding(
                 padding: EdgeInsets.all(16),
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (_hasActiveOrder && _activeOrder != null)
+            else if (hasLegacy)
               OrderStatusCard(
                 order: _activeOrder!,
                 chatId: widget.chatId,
@@ -315,8 +443,10 @@ class _InnerChatPageState extends State<InnerChatPage> {
                 storeImage: widget.storeImage,
                 onOrderCancelled: _refreshOrders,
               ),
-            
-            // Messages
+
+            // Messages — order card rides at the tail of the list so it
+            // scrolls away when the user reads older messages, matching
+            // the "pinned to bottom of conversation" behavior in the spec.
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _messagesStream, // ── UPGRADED: Reading from the locked memory stream! ──
@@ -326,6 +456,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
                   }
 
                   final msgDocs = snapshot.data?.docs ?? [];
+                  final tailCount = hasNewOrder ? 1 : 0;
 
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (_scrollController.hasClients) {
@@ -336,8 +467,20 @@ class _InnerChatPageState extends State<InnerChatPage> {
                   return ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: msgDocs.length,
+                    itemCount: msgDocs.length + tailCount,
                     itemBuilder: (context, index) {
+                      // Trailing slot: render the order card as the last
+                      // item in the chronological list.
+                      if (hasNewOrder && index == msgDocs.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: OrderCard(
+                            order: newOrder,
+                            actions: insideActions,
+                          ),
+                        );
+                      }
+
                       final msgData = msgDocs[index].data() as Map<String, dynamic>;
                       final text = msgData['text'] ?? '';
                       final senderId = msgData['senderId'] ?? '';
@@ -349,9 +492,20 @@ class _InnerChatPageState extends State<InnerChatPage> {
                 },
               ),
             ),
-            
-            // Start New Chat button - shows when there's an active order
-            if (_hasActiveOrder)
+
+            // Bottom slot: status-specific outside action → legacy fallback
+            // → plain message input. The order card itself is now part of
+            // the scrollable list above, not pinned here.
+            if (hasNewOrder) ...[
+              if (outsideAction != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: outsideAction,
+                )
+              else
+                const SizedBox(height: 16),
+            ]
+            else if (hasLegacy)
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: SizedBox(
@@ -376,61 +530,199 @@ class _InnerChatPageState extends State<InnerChatPage> {
                     ),
                   ),
                 ),
-              ),
-            
-            // Input row - only show if no active order
-            if (!_hasActiveOrder) _buildInputRow(),
+              )
+            else if (showInput)
+              _buildInputRow(),
           ],
         ),
       ),
     );
   }
 
+  /// Buttons rendered INSIDE the card (Pending state only per the spec).
+  Widget? _insideActionsFor(OrderCardData order) {
+    if (order.status != OrderStatus.pending) return null;
+    final isBuyer = _isBuyerOf(order);
+    if (isBuyer) {
+      return Row(
+        children: [
+          Expanded(
+            child: _PillButton(
+              label: 'New chat',
+              bg: AppColors.primary,
+              fg: AppColors.secondary,
+              onTap: _startNewChat,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _PillButton(
+              label: 'Cancel order',
+              bg: AppColors.pendingText,
+              fg: AppColors.secondary,
+              // TODO(backend): also write a system message into chat saying
+              // the buyer cancelled, so the seller's chat shows context.
+              onTap: () => _orderRepo.updateStatus(
+                order.orderId,
+                OrderStatus.cancelled,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    // Seller pending view.
+    return Row(
+      children: [
+        Expanded(
+          child: _PillButton(
+            label: 'Accept',
+            bg: AppColors.primary,
+            fg: AppColors.secondary,
+            onTap: () => _orderRepo.updateStatus(
+              order.orderId,
+              OrderStatus.active,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _PillButton(
+            label: 'Reject',
+            bg: AppColors.pendingText,
+            fg: AppColors.secondary,
+            onTap: () => _orderRepo.updateStatus(
+              order.orderId,
+              OrderStatus.rejected,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Full-width button rendered OUTSIDE the card for non-pending statuses.
+  Widget? _outsideActionFor(OrderCardData order) {
+    final isBuyer = _isBuyerOf(order);
+    switch (order.status) {
+      case OrderStatus.pending:
+        return null;
+      case OrderStatus.active:
+        return isBuyer
+            ? _FullWidthPill(label: 'Start new chat', onTap: _startNewChat)
+            : _FullWidthPill(
+                label: 'Ready for Handoff',
+                onTap: () => _markReady(order),
+              );
+      case OrderStatus.ready:
+        return isBuyer
+            ? _FullWidthPill(
+                label: 'Pick up order',
+                onTap: () => _openBuyerPickup(order),
+              )
+            : _FullWidthPill(
+                label: 'View pickup code',
+                onTap: () => _openSellerPickup(order),
+              );
+      case OrderStatus.rejected:
+      case OrderStatus.cancelled:
+      case OrderStatus.completed:
+        return isBuyer
+            ? _FullWidthPill(label: 'Start new chat', onTap: _startNewChat)
+            : null;
+    }
+  }
+
+  void _markReady(OrderCardData order) {
+    _orderRepo.updateStatus(order.orderId, OrderStatus.ready);
+    final fresh = _orderRepo.getById(order.orderId) ?? order;
+    _openSellerPickup(fresh);
+  }
+
+  void _openSellerPickup(OrderCardData order) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SellerOrderPickupPage(order: order),
+      ),
+    );
+  }
+
+  void _openBuyerPickup(OrderCardData order) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BuyerPickupCodePage(order: order),
+      ),
+    );
+  }
+
   Widget _buildTopBar() {
+    final isSeller = _isSeller;
+    // Buyers see the store; sellers see the buyer's display name (falls back
+    // to the literal "Buyer" while the chat doc fetch is in flight).
+    final displayName =
+        isSeller ? (_otherPartyName ?? 'Buyer') : widget.storeName;
+    // The avatar image only makes sense on the buyer-side view — we have the
+    // store logo but no buyer photo, so for sellers we render initials.
+    final NetworkImage? avatarImage =
+        (!isSeller && widget.storeImage.isNotEmpty)
+            ? NetworkImage(widget.storeImage)
+            : null;
+
+    final avatar = CircleAvatar(
+      radius: 20,
+      backgroundColor: const Color(0xFFCDEB45),
+      backgroundImage: avatarImage,
+      child: avatarImage == null
+          ? Text(
+              _getInitials(displayName),
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF003E3B),
+              ),
+            )
+          : null,
+    );
+
+    final nameLabel = Text(
+      displayName,
+      style: const TextStyle(
+        fontFamily: 'SF Pro Display',
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Colors.black,
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF003E3B), size: 24),
+            icon: const Icon(Icons.arrow_back,
+                color: Color(0xFF003E3B), size: 24),
             onPressed: () => Navigator.pop(context),
           ),
           const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: const Color(0xFFCDEB45),
-            backgroundImage: widget.storeImage.isNotEmpty ? NetworkImage(widget.storeImage) : null,
-            child: widget.storeImage.isEmpty
-                ? Text(
-                    _getInitials(widget.storeName),
-                    style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF003E3B)),
-                  )
-                : null,
-          ),
+          // Buyer view: tapping the avatar/name opens the seller's store page.
+          // Seller view: plain, non-tappable — the buyer's account stays
+          // private from the chat even if the buyer also owns a store.
+          if (isSeller)
+            avatar
+          else
+            GestureDetector(onTap: _openSellerStore, child: avatar),
           const SizedBox(width: 12),
           Expanded(
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AiSummarisePage(
-                      chatId: widget.chatId,
-                      storeId: widget.storeId,
-                      storeName: widget.storeName,
-                      storeImage: widget.storeImage,
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                widget.storeName,
-                style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-              ),
-            ),
+            child: isSeller
+                ? nameLabel
+                : GestureDetector(onTap: _openSellerStore, child: nameLabel),
           ),
           IconButton(
-            icon: const Icon(Icons.flag_outlined, color: Color(0xFF003E3B), size: 22),
+            icon: const Icon(Icons.flag_outlined,
+                color: Color(0xFF003E3B), size: 22),
             onPressed: _showReportSheet,
           ),
         ],
@@ -465,6 +757,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
   }
 
   Widget _buildInputRow() {
+    final isSeller = _isSeller;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: const BoxDecoration(
@@ -473,33 +766,38 @@ class _InnerChatPageState extends State<InnerChatPage> {
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AiSummarisePage(
-                    chatId: widget.chatId,
-                    storeId: widget.storeId,
-                    storeName: widget.storeName,
-                    storeImage: widget.storeImage,
+          // AI summarise is a buyer-only tool — sellers don't get to
+          // synthesize an order from the conversation, so the star button
+          // disappears from their view entirely.
+          if (!isSeller) ...[
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AiSummarisePage(
+                      chatId: widget.chatId,
+                      storeId: widget.storeId,
+                      storeName: widget.storeName,
+                      storeImage: widget.storeImage,
+                    ),
                   ),
-                ),
-              );
-            },
-            child: Container(
-              width: 46, height: 46,
-              decoration: const BoxDecoration(color: Color(0xFF003E3B), shape: BoxShape.circle),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/Essentials/Added/star.svg',
-                  width: 24, height: 24,
-                  colorFilter: const ColorFilter.mode(Color(0xFFCDEB45), BlendMode.srcIn),
+                );
+              },
+              child: Container(
+                width: 46, height: 46,
+                decoration: const BoxDecoration(color: Color(0xFF003E3B), shape: BoxShape.circle),
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/Essentials/Added/star.svg',
+                    width: 24, height: 24,
+                    colorFilter: const ColorFilter.mode(Color(0xFFCDEB45), BlendMode.srcIn),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: Container(
               height: 46,
@@ -523,6 +821,83 @@ class _InnerChatPageState extends State<InnerChatPage> {
             child: const Icon(Icons.send, color: Color(0xFF003E3B), size: 24),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// TODO(i18n): Arabic translations needed for the action-button labels used
+// below: "New chat", "Cancel order", "Accept", "Reject", "Start new chat",
+// "Ready for Handoff", "Pick up order", "View pickup code".
+
+/// Inside-card pill button — half-width Row child. Lime or orange background,
+/// dark green text, used for Pending action pairs (New chat / Cancel order,
+/// Accept / Reject).
+class _PillButton extends StatelessWidget {
+  final String label;
+  final Color bg;
+  final Color fg;
+  final VoidCallback onTap;
+
+  const _PillButton({
+    required this.label,
+    required this.bg,
+    required this.fg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: bg,
+        foregroundColor: fg,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'SF Pro Display',
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width pill rendered OUTSIDE the card for non-pending statuses.
+/// Always lime + dark-green per the mockups.
+class _FullWidthPill extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _FullWidthPill({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.secondary,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'SF Pro Display',
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

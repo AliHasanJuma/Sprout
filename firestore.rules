@@ -1,0 +1,69 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sprout — Firestore security rules scaffold
+//
+// This file is a REFERENCE for the rules the order-card feature needs.
+// firebase.json does not currently declare a rules file, so deploy these by
+// pasting the relevant blocks into the Firebase Console > Firestore > Rules
+// tab, MERGING with whatever rules already exist for `chats`, `users`,
+// `stores`, etc. Do NOT replace your existing rules wholesale.
+//
+// TODO(backend): tighten the order + rating rules before production. The
+// loose `request.auth != null` checks below are demo-grade. The seller-side
+// path also needs proper store-ownership lookups (e.g. read stores/{id} and
+// check ownerId == auth.uid), which requires adding an ownerId field to
+// StoreModel and backfilling existing store docs.
+// ─────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Orders ──────────────────────────────────────────────────────────
+    // Each doc id matches OrderCardData.orderId. Fields include buyerId,
+    // storeId, chatId, items[], status, pickupCode, totalPrice, etc.
+    //
+    // Reads: any authenticated user (so the seller can listen to orders in
+    //   chats they're a participant of without store-ownership checks).
+    // Create: buyer creating their own order (uid == buyerId).
+    // Update: any authenticated user (seller Accept/Reject/Ready, buyer
+    //   Cancel/Rating). TODO(backend): split into per-field rules so the
+    //   buyer can't sneak `status: accepted` on themselves.
+    // Delete: never from client.
+    match /orders/{orderId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.buyerId == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // ── Per-store ratings subcollection ────────────────────────────────
+    // Doc id is the rating buyer's uid → one rating per buyer per store.
+    // Setting the same doc replaces the previous rating (spec).
+    // TODO(backend): a Cloud Function should watch this subcollection and
+    // recompute stores/{storeId}.averageRating after each write.
+    match /stores/{storeId}/ratings/{buyerId} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && buyerId == request.auth.uid;
+    }
+
+    // ── DO NOT paste this block if you already have stores/* rules ──
+    // Listed only so you can confirm the order-card feature does NOT need
+    // any new write permission on the parent stores/{storeId} doc. The
+    // averageRating field on the store doc is written ONLY by the Cloud
+    // Function above, never by the client.
+
+    // ── Keep your existing rules for ───────────────────────────────────
+    // /chats/{chatId}        (used by the existing chat code)
+    // /chats/{chatId}/messages/{msgId}
+    // /users/{uid}
+    // /shelves/{shelfId}
+    // /products/{productId}
+    // /stores/{storeId}
+    // /reports/{reportId}
+    // /orderIntents/{id}     (legacy — can be removed once you stop
+    //                         reading from it in inner_chat_page.dart)
+  }
+}

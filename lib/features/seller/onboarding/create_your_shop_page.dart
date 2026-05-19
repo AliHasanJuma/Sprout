@@ -55,19 +55,37 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
       return;
     }
 
-    // ── 2. REGEX VALIDATION ──
-    final hasLetters = RegExp(r'[a-zA-Zأ-ي]'); 
-
-    if (!hasLetters.hasMatch(shopName) || shopName.length < 3) {
+    // ── 2. CHARACTER LIMIT VALIDATION ──
+    // Shop name: 3-50 characters
+    if (shopName.length < 3 || shopName.length > 50) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Shop name must contain letters and be at least 3 characters long.')),
+        const SnackBar(content: Text('Shop name must be between 3 and 50 characters')),
       );
       return;
     }
 
-    if (!hasLetters.hasMatch(bio) || bio.length < 10) {
+    // Bio: 10-200 characters
+    if (bio.length < 10 || bio.length > 200) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bio must contain letters and be at least 10 characters long.')),
+        const SnackBar(content: Text('Bio must be between 10 and 200 characters')),
+      );
+      return;
+    }
+
+    // This Regex checks if there is at least one English OR Arabic letter.
+    // ── 2. REGEX VALIDATION ──
+    final hasLetters = RegExp(r'[a-zA-Zأ-ي]'); 
+
+    if (!hasLetters.hasMatch(shopName)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shop name must contain letters')),
+      );
+      return;
+    }
+
+    if (!hasLetters.hasMatch(bio)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bio must contain letters')),
       );
       return;
     }
@@ -124,109 +142,110 @@ class _CreateYourShopPageState extends State<CreateYourShopPage> {
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
-          child: AbsorbPointer(
-            absorbing: _isCheckingName, // ── NEW: Freezes all textfields/checkbox interactions while checking the name ──
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                CustomTextField(
-                  label: 'Shop Name',
-                  hintText: 'Enter your shop name',
-                  controller: _shopNameController,
-                ),
-                const SizedBox(height: 16),
-                CustomTextField(
-                  label: 'Short Bio',
-                  hintText: 'Enter a short and catchy Bio',
-                  controller: _bioController,
-                ),
-                const SizedBox(height: 70),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: Checkbox(
-                        value: _agreeToTerms,
-                        onChanged: (value) {
-                          setState(() {
-                            _agreeToTerms = value ?? false;
-                          });
-                        },
-                        activeColor: AppColors.primary,
-                        checkColor: AppColors.secondary,
-                        side: const BorderSide(
-                          color: Color(0xFFDEDEDE),
-                          width: 1.0,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              CustomTextField(
+                label: 'Shop Name',
+                hintText: 'Enter your shop name',
+                controller: _shopNameController,
+                maxLength: 50,
+                countOnlyNonSpace: true,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                label: 'Short Bio',
+                hintText: 'Enter a short and catchy Bio',
+                controller: _bioController,
+                maxLength: 200,
+                countOnlyNonSpace: true,
+              ),
+              const SizedBox(height: 70),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Checkbox(
+                      value: _agreeToTerms,
+                      onChanged: (value) {
+                        setState(() {
+                          _agreeToTerms = value ?? false;
+                        });
+                      },
+                      activeColor: AppColors.primary,
+                      checkColor: AppColors.secondary,
+                      side: const BorderSide(
+                        color: Color(0xFFDEDEDE),
+                        width: 1.0,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Agree on terms & conditions',
-                            style: TextStyle(
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Agree on terms & conditions',
+                          style: TextStyle(
+                            fontFamily: 'SF Pro Display',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: Color(0xFF003E3B),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        RichText(
+                          text: TextSpan(
+                            text: 'to know more visit the ',
+                            style: const TextStyle(
                               fontFamily: 'SF Pro Display',
-                              fontSize: 14,
+                              fontSize: 12,
                               fontWeight: FontWeight.w400,
-                              color: Color(0xFF003E3B),
+                              color: Color(0xFFC3C3C3),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          RichText(
-                            text: TextSpan(
-                              text: 'to know more visit the ',
-                              style: const TextStyle(
-                                fontFamily: 'SF Pro Display',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: Color(0xFFC3C3C3),
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: 'sprout terms page',
-                                  style: const TextStyle(
-                                    fontFamily: 'SF Pro Display',
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w400,
-                                    color: Color(0xFF9F9F9F),
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Terms page coming soon!'),
-                                        ),
-                                      );
-                                    },
+                            children: [
+                              TextSpan(
+                                text: 'sprout terms page',
+                                style: const TextStyle(
+                                  fontFamily: 'SF Pro Display',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFF9F9F9F),
+                                  decoration: TextDecoration.underline,
                                 ),
-                              ],
-                            ),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Terms page coming soon!'),
+                                      ),
+                                    );
+                                  },
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 48),
-                CustomButton(
-                  text: _isCheckingName ? 'Checking availability...' : 'Continue',
-                  onPressed: _isCheckingName ? null : _handleContinue,
-                  backgroundColor: AppColors.primary,
-                  textColor: Colors.black,
-                ),
-                const SizedBox(height: 32),
-              ],
-            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 48),
+              CustomButton(
+                text: 'Continue',
+                onPressed: _handleContinue,
+                backgroundColor: AppColors.primary,
+                textColor: Colors.black,
+              ),
+              const SizedBox(height: 32),
+            ],
           ),
         ),
       ),
