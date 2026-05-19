@@ -3,12 +3,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/constants/app_colors.dart';
+import '../data/temp_data.dart';
 import '../models/order_card_data.dart';
 import '../providers/order_repository.dart';
 import '../shared/widgets/order_card.dart';
 import 'ai_summarise_page.dart';
 import 'buyer_pickup_code_page.dart';
 import 'seller_order_pickup_page.dart';
+import 'store_page.dart';
 import '../shared/widgets/order_status_card.dart';
 
 class InnerChatPage extends StatefulWidget {
@@ -60,6 +62,21 @@ class _InnerChatPageState extends State<InnerChatPage> {
 
   User? get _user => FirebaseAuth.instance.currentUser;
 
+  /// Heuristic: the chatId is built as `{buyerId}_{storeId}[_{millis}]`, so
+  /// whoever is not the buyer in this chat is the seller. Used to gate
+  /// seller-side UI (no AI summarise, no buyer-profile navigation).
+  bool get _isSeller {
+    final uid = _user?.uid;
+    if (uid == null) return false;
+    final trueBuyerId = widget.chatId.split('_')[0];
+    return uid != trueBuyerId;
+  }
+
+  /// Populated for the seller view with the buyer's display name from
+  /// `chats/{chatId}.buyerName`. Buyers don't need this — they already
+  /// see the store name passed in via widget.storeName.
+  String? _otherPartyName;
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +84,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
     // Live-sync orders for this chat thread across buyer + seller devices.
     _orderRepo.subscribeToChat(widget.chatId);
     _checkForActiveOrder();
+    _loadOtherPartyName();
 
     // ── THE FIX: Initialize the stream exactly ONCE when the page opens ──
     // Now, opening the keyboard won't destroy and restart your chat connection!
@@ -133,6 +151,60 @@ class _InnerChatPageState extends State<InnerChatPage> {
 
   void _refreshOrders() {
     _checkForActiveOrder();
+  }
+
+  /// One-shot fetch of the buyer's display name from `chats/{chatId}` so the
+  /// seller-side topbar can show who they're talking to. No-op for the buyer
+  /// view, which already has the store name from widget params.
+  Future<void> _loadOtherPartyName() async {
+    if (!_isSeller) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _otherPartyName = (doc.data()?['buyerName'] as String?) ?? 'Buyer';
+      });
+    } catch (e) {
+      debugPrint('InnerChatPage._loadOtherPartyName failed: $e');
+    }
+  }
+
+  /// Buyer-only action: tap on the avatar / name in the topbar to open the
+  /// seller's store page. Fetches the full store doc from Firestore so the
+  /// StorePage gets a complete Store object (banner, bio, rating, etc.).
+  Future<void> _openSellerStore() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('stores')
+          .doc(widget.storeId)
+          .get();
+      if (!mounted) return;
+      final data = doc.data() ?? const <String, dynamic>{};
+      final store = Store(
+        id: widget.storeId,
+        name: (data['name'] as String?) ?? widget.storeName,
+        description: (data['bio'] ?? data['description'] ?? '') as String,
+        category: (data['category'] as String?) ?? 'General',
+        imagePath:
+            (data['bannerPath'] ?? data['imageUrl'] ?? '') as String,
+        logoPath: (data['logoPath'] ??
+            data['logoUrl'] ??
+            widget.storeImage) as String,
+        rating: ((data['rating'] ?? 0.0) as num).toDouble(),
+        distanceKm: ((data['realDistanceKm'] ?? 0.0) as num).toDouble(),
+        products: const [],
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => StorePage(store: store)),
+      );
+    } catch (e) {
+      debugPrint('InnerChatPage._openSellerStore failed: $e');
+    }
   }
 
   Future<void> _startNewChat() async {
@@ -586,50 +658,71 @@ class _InnerChatPageState extends State<InnerChatPage> {
   }
 
   Widget _buildTopBar() {
+    final isSeller = _isSeller;
+    // Buyers see the store; sellers see the buyer's display name (falls back
+    // to the literal "Buyer" while the chat doc fetch is in flight).
+    final displayName =
+        isSeller ? (_otherPartyName ?? 'Buyer') : widget.storeName;
+    // The avatar image only makes sense on the buyer-side view — we have the
+    // store logo but no buyer photo, so for sellers we render initials.
+    final NetworkImage? avatarImage =
+        (!isSeller && widget.storeImage.isNotEmpty)
+            ? NetworkImage(widget.storeImage)
+            : null;
+
+    final avatar = CircleAvatar(
+      radius: 20,
+      backgroundColor: const Color(0xFFCDEB45),
+      backgroundImage: avatarImage,
+      child: avatarImage == null
+          ? Text(
+              _getInitials(displayName),
+              style: const TextStyle(
+                fontFamily: 'SF Pro Display',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF003E3B),
+              ),
+            )
+          : null,
+    );
+
+    final nameLabel = Text(
+      displayName,
+      style: const TextStyle(
+        fontFamily: 'SF Pro Display',
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Colors.black,
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF003E3B), size: 24),
+            icon: const Icon(Icons.arrow_back,
+                color: Color(0xFF003E3B), size: 24),
             onPressed: () => Navigator.pop(context),
           ),
           const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: const Color(0xFFCDEB45),
-            backgroundImage: widget.storeImage.isNotEmpty ? NetworkImage(widget.storeImage) : null,
-            child: widget.storeImage.isEmpty
-                ? Text(
-                    _getInitials(widget.storeName),
-                    style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF003E3B)),
-                  )
-                : null,
-          ),
+          // Buyer view: tapping the avatar/name opens the seller's store page.
+          // Seller view: plain, non-tappable — the buyer's account stays
+          // private from the chat even if the buyer also owns a store.
+          if (isSeller)
+            avatar
+          else
+            GestureDetector(onTap: _openSellerStore, child: avatar),
           const SizedBox(width: 12),
           Expanded(
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AiSummarisePage(
-                      chatId: widget.chatId,
-                      storeId: widget.storeId,
-                      storeName: widget.storeName,
-                      storeImage: widget.storeImage,
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                widget.storeName,
-                style: const TextStyle(fontFamily: 'SF Pro Display', fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
-              ),
-            ),
+            child: isSeller
+                ? nameLabel
+                : GestureDetector(onTap: _openSellerStore, child: nameLabel),
           ),
           IconButton(
-            icon: const Icon(Icons.flag_outlined, color: Color(0xFF003E3B), size: 22),
+            icon: const Icon(Icons.flag_outlined,
+                color: Color(0xFF003E3B), size: 22),
             onPressed: _showReportSheet,
           ),
         ],
@@ -664,6 +757,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
   }
 
   Widget _buildInputRow() {
+    final isSeller = _isSeller;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: const BoxDecoration(
@@ -672,33 +766,38 @@ class _InnerChatPageState extends State<InnerChatPage> {
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AiSummarisePage(
-                    chatId: widget.chatId,
-                    storeId: widget.storeId,
-                    storeName: widget.storeName,
-                    storeImage: widget.storeImage,
+          // AI summarise is a buyer-only tool — sellers don't get to
+          // synthesize an order from the conversation, so the star button
+          // disappears from their view entirely.
+          if (!isSeller) ...[
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AiSummarisePage(
+                      chatId: widget.chatId,
+                      storeId: widget.storeId,
+                      storeName: widget.storeName,
+                      storeImage: widget.storeImage,
+                    ),
                   ),
-                ),
-              );
-            },
-            child: Container(
-              width: 46, height: 46,
-              decoration: const BoxDecoration(color: Color(0xFF003E3B), shape: BoxShape.circle),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/Essentials/Added/star.svg',
-                  width: 24, height: 24,
-                  colorFilter: const ColorFilter.mode(Color(0xFFCDEB45), BlendMode.srcIn),
+                );
+              },
+              child: Container(
+                width: 46, height: 46,
+                decoration: const BoxDecoration(color: Color(0xFF003E3B), shape: BoxShape.circle),
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/Essentials/Added/star.svg',
+                    width: 24, height: 24,
+                    colorFilter: const ColorFilter.mode(Color(0xFFCDEB45), BlendMode.srcIn),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: Container(
               height: 46,
