@@ -47,10 +47,14 @@ class _CartPageState extends State<CartPage> {
 
     // Use the most recently active thread between this buyer + store so
     // post-cancellation "Start new chat" threads receive the next order,
-    // not the closed/cancelled chat that came before.
+    // not the closed/cancelled chat that came before. Skip threads that
+    // already carry a live order — stacking a second order on top of a
+    // pending/active one (e.g. an AI Summarize order created moments ago)
+    // would just replace the first card in the UI.
     final String chatId = await OrderRepository().findOrCreateLatestChatId(
       buyerId: user.uid,
       storeId: firstStoreId,
+      requireNoActiveOrder: true,
     );
     if (!mounted) return;
 

@@ -77,6 +77,7 @@ class OrderRepository extends ChangeNotifier {
   Future<String> findOrCreateLatestChatId({
     required String buyerId,
     required String storeId,
+    bool requireNoActiveOrder = false,
   }) async {
     try {
       final qs = await _db
@@ -94,11 +95,45 @@ class OrderRepository extends ChangeNotifier {
           if (bTs == null) return -1;
           return bTs.compareTo(aTs);
         });
-      if (matching.isNotEmpty) return matching.first.id;
+      if (matching.isNotEmpty) {
+        final latest = matching.first;
+        // Callers that are about to drop a new order in (cart "Send Order
+        // to Chat") opt into [requireNoActiveOrder] so we don't stack a
+        // second order on top of one that's still pending/active/ready.
+        // The plain "Chat" button keeps the default and reuses the latest
+        // chat regardless of order state.
+        if (!requireNoActiveOrder ||
+            !(await _hasActiveOrderForChat(latest.id))) {
+          return latest.id;
+        }
+      }
     } catch (e) {
       debugPrint('OrderRepository.findOrCreateLatestChatId failed: $e');
     }
     return newChatId(buyerId: buyerId, storeId: storeId);
+  }
+
+  /// True if Firestore has at least one order on [chatId] whose status is
+  /// not yet terminal. Used to decide whether a chat is "occupied" before
+  /// dropping a new order into it.
+  Future<bool> _hasActiveOrderForChat(String chatId) async {
+    try {
+      final qs = await _db
+          .collection('orders')
+          .where('chatId', isEqualTo: chatId)
+          .get();
+      for (final doc in qs.docs) {
+        final statusName = doc.data()['status'] as String?;
+        if (statusName == null) continue;
+        final isTerminal = statusName == 'completed' ||
+            statusName == 'rejected' ||
+            statusName == 'cancelled';
+        if (!isTerminal) return true;
+      }
+    } catch (e) {
+      debugPrint('OrderRepository._hasActiveOrderForChat failed: $e');
+    }
+    return false;
   }
 
   /// Always returns a fresh timestamped chatId. Used by Quick Order so
