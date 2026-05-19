@@ -775,10 +775,18 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         children: [
           ClipPath(
             clipper: _BowClipper(),
-            child: Container(
+            child: SizedBox(
               width: double.infinity,
               height: 220,
-              color: const Color(0xFFCDEB45),
+              child: store.imagePath.isNotEmpty
+                  ? Image.network(
+                      store.imagePath,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        color: const Color(0xFFCDEB45),
+                      ),
+                    )
+                  : Container(color: const Color(0xFFCDEB45)),
             ),
           ),
           Positioned(
