@@ -5,8 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/serivces/groq_order_service.dart';
 import '../models/order_card_data.dart';
 import '../providers/order_repository.dart';
-import '../providers/order_repository.dart';
-import '../models/order_card_data.dart';
 
 
 class AiSummarisePage extends StatefulWidget {
@@ -210,34 +208,21 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
         }
       }
 
-      // Create order using OrderCardData (similar to before, but using the model)
       final orderData = OrderCardData.createPending(
         chatId: widget.chatId,
         storeId: widget.storeId,
         storeName: widget.storeName,
+        storeAvatarUrl: widget.storeImage,
         buyerId: currentUser.uid,
         buyerName: buyerName,
         items: orderItems,
         deliveryDetails: 'Method: $_deliveryMethod\nArea: $_deliveryArea',
       );
 
-      // Save directly to Firestore using orderId as document ID
-      await FirebaseFirestore.instance
-          .collection('orderIntents')
-          .doc(orderData.orderId)
-          .set(orderData.toMap());
-
-      // Add a system message to the chat
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatId)
-          .collection('messages')
-          .add({
-        'text': '🛍️ **Order Request Created!**\n\nItems: ${orderItems.length}\nTotal: ${orderData.totalPrice} BHD\nDelivery: $_deliveryMethod',
-        'senderId': 'system',
-        'senderName': 'System',
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      // Single entry point that Quick Order also uses: writes orders/{orderId},
+      // upserts chats/{chatId} so the seller's chat list picks it up, and
+      // updates the in-memory cache so InnerChatPage rebuilds into the card.
+      await _orderRepo.createOrder(orderData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
