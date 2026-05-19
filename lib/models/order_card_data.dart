@@ -126,7 +126,7 @@ class OrderCardData {
     required String deliveryDetails,
   }) {
     final now = DateTime.now();
-    final total = items.fold<double>(0, (sum, i) => sum + i.lineTotal);
+    final total = items.fold<double>(0, (acc, i) => acc + i.lineTotal);
     return OrderCardData(
       orderId: _generateOrderId(),
       chatId: chatId,

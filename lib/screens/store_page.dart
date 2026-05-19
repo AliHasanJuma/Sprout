@@ -510,7 +510,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return; // Must be logged in
 
-    final String chatId = '${user.uid}_${widget.store.id}';
+    // Quick Order ALWAYS spawns its own thread so it stays a single-order
+    // closed chat — separate from any running conversation this buyer
+    // already has with the store.
+    final String chatId = OrderRepository().newChatId(
+      buyerId: user.uid,
+      storeId: widget.store.id,
+    );
 
     // TODO(schema): once OrderItem carries size / add-ons / instructions,
     // forward them here instead of dropping them on the floor.
@@ -1063,15 +1069,27 @@ if (isFav) {
                         children: [
                           // Chat button with PNG icon
                           GestureDetector(
-                          onTap: () {
+                          onTap: () async {
                             final uid = FirebaseAuth.instance.currentUser?.uid;
                             if (uid == null) return;
-                            
-                            // ── CREATE THE SMART CHAT ID ──
-                            final String chatId = '${uid}_${store.id}';
 
-                            Navigator.push(
-                              context,
+                            // Capture the Navigator before the async gap
+                            // so we don't reference `context` across the
+                            // await (lint: use_build_context_synchronously).
+                            final navigator = Navigator.of(context);
+
+                            // Resolve the LATEST chat for this buyer + store.
+                            // Drops the buyer into the most recent thread —
+                            // including any thread spawned by a previous
+                            // "Start new chat" tap — rather than always
+                            // reusing the legacy `{uid}_{storeId}` chat.
+                            final String chatId =
+                                await OrderRepository().findOrCreateLatestChatId(
+                              buyerId: uid,
+                              storeId: store.id,
+                            );
+
+                            navigator.push(
                               MaterialPageRoute(
                                 builder: (_) => InnerChatPage(
                                   chatId: chatId,

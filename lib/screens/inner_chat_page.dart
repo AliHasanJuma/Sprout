@@ -135,8 +135,28 @@ class _InnerChatPageState extends State<InnerChatPage> {
     _checkForActiveOrder();
   }
 
-  void _startNewChat() {
-    final newChatId = '${_user?.uid}_${widget.storeId}_${DateTime.now().millisecondsSinceEpoch}';
+  Future<void> _startNewChat() async {
+    final uid = _user?.uid;
+    if (uid == null) return;
+    final newChatId = _orderRepo.newChatId(
+      buyerId: uid,
+      storeId: widget.storeId,
+    );
+    // Stamp the new chat doc immediately so `findOrCreateLatestChatId`
+    // discovers it the next time the buyer comes back via the store
+    // "Chat" button or the cart — even before any message is sent.
+    await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(newChatId)
+        .set({
+      'buyerId': uid,
+      'storeId': widget.storeId,
+      'storeName': widget.storeName,
+      'storeImage': widget.storeImage,
+      'lastMessage': '',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -352,7 +372,9 @@ class _InnerChatPageState extends State<InnerChatPage> {
                 onOrderCancelled: _refreshOrders,
               ),
 
-            // Messages
+            // Messages — order card rides at the tail of the list so it
+            // scrolls away when the user reads older messages, matching
+            // the "pinned to bottom of conversation" behavior in the spec.
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _messagesStream, // ── UPGRADED: Reading from the locked memory stream! ──
@@ -362,6 +384,7 @@ class _InnerChatPageState extends State<InnerChatPage> {
                   }
 
                   final msgDocs = snapshot.data?.docs ?? [];
+                  final tailCount = hasNewOrder ? 1 : 0;
 
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (_scrollController.hasClients) {
@@ -372,8 +395,20 @@ class _InnerChatPageState extends State<InnerChatPage> {
                   return ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: msgDocs.length,
+                    itemCount: msgDocs.length + tailCount,
                     itemBuilder: (context, index) {
+                      // Trailing slot: render the order card as the last
+                      // item in the chronological list.
+                      if (hasNewOrder && index == msgDocs.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: OrderCard(
+                            order: newOrder,
+                            actions: insideActions,
+                          ),
+                        );
+                      }
+
                       final msgData = msgDocs[index].data() as Map<String, dynamic>;
                       final text = msgData['text'] ?? '';
                       final senderId = msgData['senderId'] ?? '';
@@ -386,16 +421,13 @@ class _InnerChatPageState extends State<InnerChatPage> {
               ),
             ),
 
-            // Bottom slot: order card + status-specific actions → legacy
-            // fallback → plain message input.
+            // Bottom slot: status-specific outside action → legacy fallback
+            // → plain message input. The order card itself is now part of
+            // the scrollable list above, not pinned here.
             if (hasNewOrder) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                child: OrderCard(order: newOrder, actions: insideActions),
-              ),
               if (outsideAction != null)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: outsideAction,
                 )
               else

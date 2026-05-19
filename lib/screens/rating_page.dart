@@ -183,7 +183,12 @@ class _RatingPageState extends State<RatingPage> {
             Align(
               alignment: Alignment.centerLeft,
               child: _CloseButton(
-                onTap: () => Navigator.pop(context),
+                // Skip-rating exit drops the buyer all the way back to the
+                // home shell, not just one step back into the chat. The
+                // order is already marked completed at this point — there
+                // is nothing for the buyer to do on the chat screen.
+                onTap: () => Navigator.of(context)
+                    .popUntil((route) => route.isFirst),
               ),
             ),
             const SizedBox(height: 16),
