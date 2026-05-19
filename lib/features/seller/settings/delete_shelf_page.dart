@@ -162,7 +162,19 @@ class _DeleteShelfRow extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             child: hasPhoto
-                ? Image.file(File(shelf.photoPaths.first), fit: BoxFit.cover)
+                ? (shelf.photoPaths.first.startsWith('http')
+                    ? Image.network(
+                        shelf.photoPaths.first,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            const SizedBox.shrink(),
+                      )
+                    : Image.file(
+                        File(shelf.photoPaths.first),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            const SizedBox.shrink(),
+                      ))
                 : null,
           ),
           const SizedBox(width: 12),
