@@ -3,9 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Added Firestore
 import 'package:firebase_auth/firebase_auth.dart'; // Added for User ID
 import '../data/temp_data.dart';
 import '../models/cart_model.dart';
-import '../models/order_card_data.dart';
 import '../providers/cart_provider.dart';
-import '../providers/order_repository.dart';
 import '../pages/cart_page.dart';
 import 'inner_chat_page.dart';
 
@@ -71,7 +69,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       if (product.addons != null) {
         for (final addon in product.addons!) {
           if (selectedAddons.contains(addon['name'])) {
-            base += ((addon['price'] as num?) ?? 0).toDouble() * quantity;
+            base += (addon['price'] as num).toDouble() * quantity;
           }
         }
       }
@@ -83,7 +81,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       if (product.addons != null) {
         for (final addon in product.addons!) {
           if (selectedAddons.contains(addon['name'])) {
-            total += ((addon['price'] as num?) ?? 0).toDouble();
+            total += (addon['price'] as num).toDouble();
           }
         }
       }
@@ -293,8 +291,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 8),
                           ...product.addons!.map((addon) {
-                            final name = (addon['name'] as String?) ?? '';
-                            final price = ((addon['price'] as num?) ?? 0).toDouble();
+                            final name = addon['name'] as String;
+                            final price = (addon['price'] as num).toDouble();
                             final isChecked = selectedAddons.contains(name);
                             return CheckboxListTile(
                               contentPadding: EdgeInsets.zero,
@@ -507,42 +505,20 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     String instructions,
     double total,
   ) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return; // Must be logged in
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return; // Must be logged in
 
-    // Quick Order ALWAYS spawns its own thread so it stays a single-order
-    // closed chat — separate from any running conversation this buyer
-    // already has with the store.
-    final String chatId = OrderRepository().newChatId(
-      buyerId: user.uid,
-      storeId: widget.store.id,
-    );
+    final buffer = StringBuffer();
+    buffer.writeln('🛒 New Order:');
+    buffer.writeln('Product: ${product.name}');
+    if (size != null) buffer.writeln('Size: $size');
+    buffer.writeln('Quantity: $quantity');
+    if (addons.isNotEmpty) buffer.writeln('Add-ons: ${addons.join(', ')}');
+    if (instructions.isNotEmpty) buffer.writeln('Instructions: $instructions');
+    buffer.writeln('Total: ${total.toStringAsFixed(1)} BD');
 
-    // TODO(schema): once OrderItem carries size / add-ons / instructions,
-    // forward them here instead of dropping them on the floor.
-    final orderItem = OrderItem(
-      productId: product.id,
-      name: product.name,
-      description: product.description,
-      imageUrl: product.imagePath,
-      quantity: quantity,
-      pricePerUnit: product.price,
-    );
-
-    final order = OrderCardData.createPending(
-      chatId: chatId,
-      storeId: widget.store.id,
-      storeName: widget.store.name,
-      storeAvatarUrl: widget.store.logoPath,
-      buyerId: user.uid,
-      buyerName: user.displayName ?? 'Customer',
-      items: [orderItem],
-      // TODO(backend): join from stores/{storeId}.defaultDeliveryDetails
-      // once the seller-side editor lands.
-      deliveryDetails: '',
-    );
-
-    OrderRepository().createOrder(order);
+    // ── CREATE THE SMART CHAT ID ──
+    final String chatId = '${uid}_${widget.store.id}';
 
     Navigator.push(
       context,
@@ -552,6 +528,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           storeId: widget.store.id,
           storeName: widget.store.name,
           storeImage: widget.store.logoPath,
+          initialMessage: buffer.toString().trim(),
         ),
       ),
     );
@@ -1069,27 +1046,15 @@ if (isFav) {
                         children: [
                           // Chat button with PNG icon
                           GestureDetector(
-                          onTap: () async {
+                          onTap: () {
                             final uid = FirebaseAuth.instance.currentUser?.uid;
                             if (uid == null) return;
+                            
+                            // ── CREATE THE SMART CHAT ID ──
+                            final String chatId = '${uid}_${store.id}';
 
-                            // Capture the Navigator before the async gap
-                            // so we don't reference `context` across the
-                            // await (lint: use_build_context_synchronously).
-                            final navigator = Navigator.of(context);
-
-                            // Resolve the LATEST chat for this buyer + store.
-                            // Drops the buyer into the most recent thread —
-                            // including any thread spawned by a previous
-                            // "Start new chat" tap — rather than always
-                            // reusing the legacy `{uid}_{storeId}` chat.
-                            final String chatId =
-                                await OrderRepository().findOrCreateLatestChatId(
-                              buyerId: uid,
-                              storeId: store.id,
-                            );
-
-                            navigator.push(
+                            Navigator.push(
+                              context,
                               MaterialPageRoute(
                                 builder: (_) => InnerChatPage(
                                   chatId: chatId,

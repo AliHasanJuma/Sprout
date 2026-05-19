@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/app_top_bar.dart';
 import '../../shared/widgets/custom_button.dart';
-import '../../shared/widgets/otp_input.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // ── ADDED IMPORT ──
@@ -37,8 +36,16 @@ class VerificationScreen extends StatefulWidget {
 }
 
 class _VerificationScreenState extends State<VerificationScreen> {
-  String _otp = '';
+  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isVerifying = false;
+
+  @override
+  void dispose() {
+    for (var c in _controllers) c.dispose();
+    for (var n in _focusNodes) n.dispose();
+    super.dispose();
+  }
 
   Future<void> _saveUserToFirestore(String uid) async {
     await FirebaseFirestore.instance.collection('users').doc(uid).set({
@@ -86,9 +93,35 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            OtpInput(
-              length: 6,
-              onChanged: (v) => setState(() => _otp = v),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(6, (index) {
+                return Container(
+                  width: 45,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFDEDEDE)),
+                  ),
+                  child: TextField(
+                    controller: _controllers[index],
+                    focusNode: _focusNodes[index],
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    maxLength: 1,
+                    style: const TextStyle(
+                      color: AppColors.secondary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+                    onChanged: (v) {
+                      if (v.isNotEmpty && index < 5) _focusNodes[index + 1].requestFocus();
+                    },
+                  ),
+                );
+              }),
             ),
             const SizedBox(height: 16),
             GestureDetector(
@@ -107,13 +140,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
               text: _isVerifying ? 'Verifying...' : 'Continue',
               onPressed: _isVerifying ? null : () async {
                 setState(() => _isVerifying = true);
+                String code = _controllers.map((e) => e.text).join();
                 final nav = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
 
                 try {
                   PhoneAuthCredential credential = PhoneAuthProvider.credential(
                     verificationId: widget.verificationId,
-                    smsCode: _otp,
+                    smsCode: code,
                   );
 
                   UserCredential userCred = await FirebaseAuth.instance.signInWithCredential(credential);
