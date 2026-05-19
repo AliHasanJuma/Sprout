@@ -14,7 +14,9 @@ class _SearchResult {
   final String logoPath;
   final Map<String, dynamic> data;
   final String docId;
-  final int relevanceScore; // ── ADDED RELEVANCE SCORE ──
+  final String? storeId;
+  final String? storeName;
+  final int relevanceScore;
 
   const _SearchResult({
     required this.type,
@@ -25,7 +27,9 @@ class _SearchResult {
     required this.logoPath,
     required this.data,
     required this.docId,
-    required this.relevanceScore, // ── ADDED RELEVANCE SCORE ──
+    this.storeId,
+    this.storeName,
+    required this.relevanceScore,
   });
 }
 
@@ -79,7 +83,6 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
-  // ── UPDATED: SEARCH WITH SMART SORTING ──
   Future<void> _performSearch(String query) async {
     if (query.isEmpty) {
       setState(() {
@@ -92,27 +95,25 @@ class _SearchPageState extends State<SearchPage> {
     setState(() => _isTyping = true);
     final q = query.toLowerCase().trim();
 
-    final snapshot = await FirebaseFirestore.instance.collection('stores').get();
+    // Search stores
+    final storesSnapshot = await FirebaseFirestore.instance.collection('stores').get();
+    
+    // Search shelves (products)
+    final shelvesSnapshot = await FirebaseFirestore.instance.collection('shelves').get();
     
     final results = <_SearchResult>[];
 
-    for (final doc in snapshot.docs) {
+    // ── SEARCH STORES ──
+    for (final doc in storesSnapshot.docs) {
       final data = doc.data();
       final name = (data['name'] ?? '').toString().toLowerCase();
       final desc = (data['description'] ?? '').toString().toLowerCase();
 
       int score = 0;
-
-      // ── GRADING LOGIC ──
-      if (name == q) {
-        score = 100; // Exact match
-      } else if (name.startsWith(q)) {
-        score = 75;  // Starts with
-      } else if (name.contains(q)) {
-        score = 50;  // Contains
-      } else if (desc.contains(q)) {
-        score = 25;  // In description
-      }
+      if (name == q) score = 100;
+      else if (name.startsWith(q)) score = 75;
+      else if (name.contains(q)) score = 50;
+      else if (desc.contains(q)) score = 25;
 
       if (score > 0) {
         results.add(_SearchResult(
@@ -124,7 +125,53 @@ class _SearchPageState extends State<SearchPage> {
           logoPath: data['logoUrl'] ?? '',
           data: data,
           docId: doc.id,
-          relevanceScore: score, // Pass the calculated score
+          relevanceScore: score,
+        ));
+      }
+    }
+
+    // ── SEARCH SHELVES (PRODUCTS) ──
+    for (final doc in shelvesSnapshot.docs) {
+      final data = doc.data();
+      final name = (data['name'] ?? '').toString().toLowerCase();
+      final desc = (data['description'] ?? '').toString().toLowerCase();
+      
+      // Get store info for this product
+      String storeId = data['storeId'] ?? '';
+      String storeName = '';
+      
+      if (storeId.isNotEmpty) {
+        final storeDoc = await FirebaseFirestore.instance.collection('stores').doc(storeId).get();
+        if (storeDoc.exists) {
+          storeName = storeDoc.data()?['name'] ?? 'Store';
+        }
+      }
+
+      int score = 0;
+      if (name == q) score = 100;
+      else if (name.startsWith(q)) score = 75;
+      else if (name.contains(q)) score = 50;
+      else if (desc.contains(q)) score = 25;
+
+      if (score > 0) {
+        // Get image from photoPaths array
+        String imageUrl = '';
+        if (data['photoPaths'] != null && data['photoPaths'] is List && (data['photoPaths'] as List).isNotEmpty) {
+          imageUrl = data['photoPaths'][0].toString();
+        }
+        
+        results.add(_SearchResult(
+          type: 'Product',
+          name: data['name'] ?? 'Product',
+          subtitle: 'Sold by: $storeName',
+          rating: 0.0, // Products don't have ratings directly
+          imagePath: imageUrl,
+          logoPath: imageUrl,
+          data: data,
+          docId: doc.id,
+          storeId: storeId,
+          storeName: storeName,
+          relevanceScore: score,
         ));
       }
     }
@@ -151,21 +198,41 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _navigateToStore(_SearchResult result) async {
-    final store = Store(
-      id: result.docId,
-      name: result.name,
-      description: result.subtitle,
-      imagePath: result.imagePath,
-      logoPath: result.data['logoUrl'] ?? '',
-      rating: result.rating,
-      category: result.data['category'] ?? 'General',
-      distanceKm: (result.data['distanceKm'] ?? 0.0).toDouble(),
-      products: [], 
-    );
-
     _saveSearchQuery(_controller.text);
-
-    Navigator.push(context, MaterialPageRoute(builder: (_) => StorePage(store: store)));
+    
+    if (result.type == 'Store') {
+      // Navigate to store page
+      final store = Store(
+        id: result.docId,
+        name: result.name,
+        description: result.subtitle,
+        imagePath: result.imagePath,
+        logoPath: result.data['logoUrl'] ?? '',
+        rating: result.rating,
+        category: result.data['category'] ?? 'General',
+        distanceKm: (result.data['distanceKm'] ?? 0.0).toDouble(),
+        products: [], 
+      );
+      Navigator.push(context, MaterialPageRoute(builder: (_) => StorePage(store: store)));
+    } else if (result.type == 'Product' && result.storeId != null) {
+      // Navigate to the store page of the product
+      final storeDoc = await FirebaseFirestore.instance.collection('stores').doc(result.storeId).get();
+      if (storeDoc.exists) {
+        final data = storeDoc.data()!;
+        final store = Store(
+          id: result.storeId!,
+          name: data['name'] ?? result.storeName ?? 'Store',
+          description: data['description'] ?? '',
+          imagePath: data['imageUrl'] ?? '',
+          logoPath: data['logoUrl'] ?? '',
+          rating: (data['rating'] ?? 0.0).toDouble(),
+          category: data['category'] ?? 'General',
+          distanceKm: (data['distanceKm'] ?? 0.0).toDouble(),
+          products: [], 
+        );
+        Navigator.push(context, MaterialPageRoute(builder: (_) => StorePage(store: store)));
+      }
+    }
   }
 
   @override
@@ -291,7 +358,7 @@ class _SearchPageState extends State<SearchPage> {
               child: Image.network(
                 result.logoPath,
                 width: 80, height: 80, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9)),
+                errorBuilder: (_, __, ___) => Container(width: 80, height: 80, color: const Color(0xFFD9D9D9), child: const Icon(Icons.store, color: Color(0xFF9F9F9F))),
               ),
             ),
             const SizedBox(width: 16),
@@ -315,7 +382,7 @@ class _SearchPageState extends State<SearchPage> {
                   const SizedBox(height: 4),
                   Text(result.subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF9F9F9F)), maxLines: 1),
                   const SizedBox(height: 6),
-                  _buildStars(result.rating),
+                  if (result.type == 'Store') _buildStars(result.rating),
                 ],
               ),
             ),
