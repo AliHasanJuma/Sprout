@@ -37,6 +37,8 @@ class StoreModel {
   final String? bannerPath;
   final StoreLocation? location;
   final List<HandoffMethod> handoffMethods;
+  // TODO(ui): expose this in seller onboarding + store settings so sellers can edit it.
+  final String defaultDeliveryDetails;
 
   const StoreModel({
     this.id,
@@ -47,6 +49,7 @@ class StoreModel {
     this.bannerPath,
     this.location,
     this.handoffMethods = const [],
+    this.defaultDeliveryDetails = '',
   });
 
   StoreModel copyWith({
@@ -58,6 +61,7 @@ class StoreModel {
     String? bannerPath,
     StoreLocation? location,
     List<HandoffMethod>? handoffMethods,
+    String? defaultDeliveryDetails,
   }) {
     return StoreModel(
       id: id ?? this.id,
@@ -68,6 +72,7 @@ class StoreModel {
       bannerPath: bannerPath ?? this.bannerPath,
       location: location ?? this.location,
       handoffMethods: handoffMethods ?? this.handoffMethods,
+      defaultDeliveryDetails: defaultDeliveryDetails ?? this.defaultDeliveryDetails,
     );
   }
 
@@ -80,6 +85,7 @@ class StoreModel {
         'bannerPath': bannerPath,
         'location': location?.toMap(),
         'handoffMethods': handoffMethods.map((m) => m.name).toList(),
+        'defaultDeliveryDetails': defaultDeliveryDetails,
       };
 
   factory StoreModel.fromMap(Map<String, dynamic> map) => StoreModel(
@@ -95,5 +101,6 @@ class StoreModel {
         handoffMethods: (map['handoffMethods'] as List? ?? [])
             .map((m) => HandoffMethod.values.firstWhere((e) => e.name == m))
             .toList(),
+        defaultDeliveryDetails: (map['defaultDeliveryDetails'] as String?) ?? '',
       );
 }

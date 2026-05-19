@@ -3,6 +3,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/serivces/groq_order_service.dart';
+import '../models/order_card_data.dart';
+import '../providers/order_repository.dart';
+
 
 class AiSummarisePage extends StatefulWidget {
   final String chatId;
@@ -25,6 +28,7 @@ class AiSummarisePage extends StatefulWidget {
 class _AiSummarisePageState extends State<AiSummarisePage> {
   bool _isLoading = true;
   String? _error;
+  final OrderRepository _orderRepo = OrderRepository();
   
   List<Map<String, dynamic>> _extractedItems = [];
   double _totalPrice = 0;
@@ -165,6 +169,14 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
     }
   }
 
+  // TODO(refactor): the spec wants this page to consume the shared
+  // lib/shared/widgets/order_card.dart with `editable: true` so the AI view
+  // and the in-chat view share one widget. Today they share the data
+  // contract (OrderCardData) but not the visual implementation — the AI
+  // page keeps its existing layout. Pull the editable mode into OrderCard
+  // (quantity steppers, item-remove, delivery edit dialog) and replace this
+  // page's manual build with a single OrderCard(editable: true, ...) when
+  // the AI page is next touched.
   Future<void> _createOrderIntent() async {
     setState(() {
       _isLoading = true;
@@ -174,42 +186,43 @@ class _AiSummarisePageState extends State<AiSummarisePage> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) throw Exception('User not logged in');
 
-      final itemsList = [];
+      // Get buyer name
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+      final buyerName = userDoc.data()?['displayName'] ?? currentUser.email ?? 'Customer';
+
+      // Build OrderItem list from extracted items
+      final orderItems = <OrderItem>[];
       for (int i = 0; i < _extractedItems.length; i++) {
         if (_visible[i] == true) {
-          itemsList.add({
-            'name': _extractedItems[i]['name'],
-            'quantity': _quantities[i] ?? 1,
-            'price_per_unit': _extractedItems[i]['price_per_unit'],
-          });
+          orderItems.add(OrderItem(
+            productId: '', // Will be populated by backend from shelves collection
+            name: _extractedItems[i]['name'],
+            description: _notes.isNotEmpty ? _notes : 'No additional notes',
+            imageUrl: _extractedItems[i]['imageUrl'],
+            quantity: _quantities[i] ?? 1,
+            pricePerUnit: _extractedItems[i]['price_per_unit'],
+          ));
         }
       }
 
-      await FirebaseFirestore.instance.collection('orderIntents').add({
-        'chatId': widget.chatId,
-        'buyerId': currentUser.uid,
-        'storeId': widget.storeId,
-        'storeName': widget.storeName,
-        'items': itemsList,
-        'totalPrice': _totalPrice,
-        'deliveryMethod': _deliveryMethod,
-        'deliveryArea': _deliveryArea,
-        'notes': _notes,
-        'status': 'requested',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final orderData = OrderCardData.createPending(
+        chatId: widget.chatId,
+        storeId: widget.storeId,
+        storeName: widget.storeName,
+        storeAvatarUrl: widget.storeImage,
+        buyerId: currentUser.uid,
+        buyerName: buyerName,
+        items: orderItems,
+        deliveryDetails: 'Method: $_deliveryMethod\nArea: $_deliveryArea',
+      );
 
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatId)
-          .collection('messages')
-          .add({
-        'text': '🛍️ **Order Request Created!**\n\nItems: ${itemsList.length}\nTotal: $_totalPrice BHD\nDelivery: $_deliveryMethod\n\nPlease check your order requests tab.',
-        'senderId': 'system',
-        'senderName': 'System',
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      // Single entry point that Quick Order also uses: writes orders/{orderId},
+      // upserts chats/{chatId} so the seller's chat list picks it up, and
+      // updates the in-memory cache so InnerChatPage rebuilds into the card.
+      await _orderRepo.createOrder(orderData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
