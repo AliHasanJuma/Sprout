@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class GroqOrderService {
-  static const String _vercelUrl = 'https://groq-proxy-kappa.vercel.app/api/chat';
+  static const String _vercelUrl = 'https://groq-proxy-lb9p6k1y5-adel-buaboods-projects.vercel.app/api/chat';
   
   static Future<Map<String, dynamic>> extractOrderFromChat({
     required String chatId,
@@ -133,14 +133,16 @@ Return ONLY valid JSON. No other text. Format:
         final startIndex = content.indexOf('{');
         final endIndex = content.lastIndexOf('}');
         
-        if (startIndex != -1 && endIndex != -1) {
+        if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
           final jsonStr = content.substring(startIndex, endIndex + 1);
           return jsonDecode(jsonStr);
         }
+        
+        return {'has_order': false, 'error': 'No JSON found in response'};
       }
       
       print('Vercel/Groq error: ${response.statusCode} - ${response.body}');
-      return {'has_order': false, 'error': 'Failed to parse response'};
+      return {'has_order': false, 'error': 'Server error: ${response.statusCode}'};
       
     } catch (e) {
       print('Groq service error: $e');
