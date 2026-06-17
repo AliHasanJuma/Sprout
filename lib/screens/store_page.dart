@@ -696,7 +696,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             ),
         ],
       ),
-    );
+    ); //f
   }
 
   Widget _buildFloatingCartBar() {
